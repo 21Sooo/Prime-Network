@@ -16,7 +16,7 @@ const path = require("path");
 
 const TOKEN = process.env.TOKEN;
 
-// --- CONFIGURATION ---
+// --- CONFIGURATION DES IDS ---
 const PHOTO_CHANNEL_ID = "1403500792106717235";
 const MODEL_CHANNEL_ID = "1477705326525681806";
 const DASHBOARD_CHANNEL_ID = "1490305746598887435";
@@ -25,17 +25,23 @@ const WATERMARK_CHANNEL_ID = "1462586238648324146";
 const PHOTO_ROLE = "🎥・Prime Photographer";
 const MODEL_ROLE = "👠・Prime Model";
 
-// Enregistrement de la police (Indispensable pour Railway)
-const fontPath = path.join(__dirname, 'fonts', 'Roboto-Regular.ttf');
-if (fs.existsSync(fontPath)) {
-  registerFont(fontPath, { family: 'CustomFont' });
+// --- ENREGISTREMENT DES POLICES ---
+// Assure-toi que ces fichiers existent dans ton dossier /fonts sur GitHub
+const fontRegular = path.join(__dirname, 'fonts', 'Roboto-Regular.ttf');
+const fontSignature = path.join(__dirname, 'fonts', 'DancingScript.ttf');
+
+if (fs.existsSync(fontRegular)) {
+  registerFont(fontRegular, { family: 'DevisFont' });
+}
+if (fs.existsSync(fontSignature)) {
+  registerFont(fontSignature, { family: 'SignatureFont' });
 }
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// ===== FILES =====
+// --- GESTION DES FICHIERS DE DONNÉES ---
 const panelFile = "./panels.json";
 const statusFile = "./statuses.json";
 
@@ -49,69 +55,71 @@ const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data,
 
 let { photoStatuses, modelStatuses } = getStatuses();
 
-// ===== GÉNÉRATEUR DE DEVIS (TEMPLATE) =====
-async function createComplexDevis(data, signature = null) {
+// --- GÉNÉRATEUR DE DEVIS ---
+async function createComplexDevis(data, signatureName = null) {
   const templatePath = path.join(__dirname, 'devis_template.png');
-  const background = await loadImage(templatePath);
+  if (!fs.existsSync(templatePath)) throw new Error("Template introuvable !");
   
+  const background = await loadImage(templatePath);
   const canvas = createCanvas(background.width, background.height);
   const ctx = canvas.getContext('2d');
 
-  // Dessiner le template
+  // Dessin du fond
   ctx.drawImage(background, 0, 0);
 
-  // Configuration texte
+  // Style de texte pour le contenu
   ctx.fillStyle = "#000000";
-  ctx.font = "24px 'CustomFont'";
+  ctx.font = "22px 'DevisFont'";
 
   const dateStr = new Date().toLocaleDateString('fr-FR');
 
-  // Remplissage des champs (Coordonnées approximatives à ajuster selon ton image)
-  ctx.fillText(dateStr, 135, 150);                     // Date
-  ctx.fillText(`INV-${Math.floor(Math.random()*9000)}`, 135, 215); // N° Facture
-  ctx.fillText(data.client, 135, 265);                 // Facturé à
-  ctx.fillText(data.telephone || "N/A", 135, 320);    // Adresse/Tel
+  // Coordonnées (À AJUSTER selon ton image)
+  ctx.fillText(dateStr, 135, 145);                     // Date
+  ctx.fillText(`PRIME-${Math.floor(1000 + Math.random()*9000)}`, 135, 210); // N° Facture
+  ctx.fillText(data.client || "Client Inconnu", 135, 260); // Facturé à
+  ctx.fillText(data.telephone || "Non renseigné", 135, 315); // Adresse/Tel
 
-  // Tableau (Une seule ligne pour l'exemple simplifié)
-  ctx.font = "20px 'CustomFont'";
-  ctx.fillText(dateStr, 135, 415);                     // Date colonne 1
-  ctx.fillText(data.description, 250, 415);            // Prestation
-  ctx.fillText(`${data.prix} €`, 545, 415);            // Prix
-  ctx.fillText(data.photos.toString(), 700, 415);      // Qté
-  ctx.fillText(`${data.prix} €`, 780, 415);            // Total
+  // Ligne de prestation dans le tableau
+  ctx.font = "20px 'DevisFont'";
+  ctx.fillText(dateStr, 140, 410);                    // Date
+  ctx.fillText(data.description || "Prestation Photo", 255, 410); // Prestation
+  ctx.fillText(`${data.prix} €`, 550, 410);           // Prix Unitaire
+  ctx.fillText(data.photos ? data.photos.toString() : "1", 705, 410); // Quantité
+  ctx.fillText(`${data.prix} €`, 785, 410);           // Total ligne
 
-  // Total en bas
-  ctx.font = "bold 26px 'CustomFont'";
-  ctx.fillText(`${data.prix} €`, 545, 775);
+  // Total final
+  ctx.font = "bold 26px 'DevisFont'";
+  ctx.fillText(`${data.prix} €`, 550, 775);
 
-  // Signature si acceptée
-  if (signature) {
-    ctx.font = "italic 30px 'CustomFont'";
-    ctx.fillStyle = "#00008B"; // Bleu foncé type stylo
-    ctx.fillText(signature, 540, 900); // Signature client
-    ctx.fillText(data.photographe, 110, 900); // Signature photographe automatique
+  // --- SIGNATURES ---
+  if (signatureName) {
+    // Signature du Photographe (Automatique)
+    ctx.font = "25px 'SignatureFont'";
+    ctx.fillStyle = "#1a237e"; // Bleu encre
+    ctx.fillText(data.photographe || "Le Photographe", 120, 890);
+
+    // Signature du Client (Celle passée au clic sur Accepter)
+    ctx.font = "35px 'SignatureFont'";
+    ctx.fillText(signatureName, 550, 890);
   }
 
   return canvas.toBuffer();
 }
 
-// ===== INTERFACES =====
+// --- LOGIQUE DES DISPONIBILITÉS ---
 const dispoButtons = new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId("dispo_on").setLabel("🟢 Disponible").setStyle(ButtonStyle.Success),
   new ButtonBuilder().setCustomId("dispo_off").setLabel("🔴 Indisponible").setStyle(ButtonStyle.Danger)
 );
 
-// (Les fonctions generatePhotoEmbed, generateModelEmbed, generateDashboardEmbed restent identiques à ton code original)
 function generatePhotoEmbed() {
-  const available = Object.values(photoStatuses).filter(s => s === "🟢").length;
-  const description = Object.entries(photoStatuses).map(([user, emoji]) => `• **${user}** → ${emoji}`).join("\n") || "_Aucun photographe_";
-  return new EmbedBuilder().setTitle("📸 Planning Photographes").setColor("#00bfff").setDescription(description).setTimestamp();
+  const desc = Object.entries(photoStatuses).map(([u, e]) => `• **${u}** → ${e}`).join("\n") || "_Aucun photographe_";
+  return new EmbedBuilder().setTitle("📸 Planning Photographes").setColor("#00bfff").setDescription(desc).setTimestamp();
 }
 
 function generateModelEmbed() {
-  const available = Object.values(modelStatuses).filter(s => s === "🟢").length;
-  const description = Object.entries(modelStatuses).map(([user, emoji]) => `• **${user}** → ${emoji}`).join("\n") || "_Aucun modèle_";
-  return new EmbedBuilder().setTitle("👠 Planning Modèles").setColor("#ff69b4").setDescription(description).setTimestamp();
+  const desc = Object.entries(modelStatuses).map(([u, e]) => `• **${u}** → ${e}`).join("\n") || "_Aucun modèle_";
+  return new EmbedBuilder().setTitle("👠 Planning Modèles").setColor("#ff69b4").setDescription(desc).setTimestamp();
 }
 
 function generateDashboardEmbed() {
@@ -121,18 +129,21 @@ function generateDashboardEmbed() {
 }
 
 async function updatePanel(channelId, embed, key) {
-  const channel = await client.channels.fetch(channelId);
-  const panels = getPanels();
-  let msg;
-  try { if (panels[key]) msg = await channel.messages.fetch(panels[key]); } catch { msg = null; }
-
-  if (!msg) {
-    msg = await channel.send({ embeds: [embed], components: key !== "dashboardMessageId" ? [dispoButtons] : [] });
-    panels[key] = msg.id;
-    savePanels(panels);
-  } else {
-    await msg.edit({ embeds: [embed], components: key !== "dashboardMessageId" ? [dispoButtons] : [] });
-  }
+  try {
+    const channel = await client.channels.fetch(channelId);
+    const panels = getPanels();
+    let msg;
+    if (panels[key]) {
+      try { msg = await channel.messages.fetch(panels[key]); } catch { msg = null; }
+    }
+    if (!msg) {
+      msg = await channel.send({ embeds: [embed], components: key !== "dashboardMessageId" ? [dispoButtons] : [] });
+      panels[key] = msg.id;
+      savePanels(panels);
+    } else {
+      await msg.edit({ embeds: [embed], components: key !== "dashboardMessageId" ? [dispoButtons] : [] });
+    }
+  } catch (err) { console.error(`Erreur panel ${key}:`, err); }
 }
 
 async function refreshAll() {
@@ -141,80 +152,110 @@ async function refreshAll() {
   await updatePanel(DASHBOARD_CHANNEL_ID, generateDashboardEmbed(), "dashboardMessageId");
 }
 
-// ===== EVENTS =====
+// --- ÉVÉNEMENTS ---
 client.once("ready", async () => {
-  console.log(`✅ Connecté : ${client.user.tag}`);
+  console.log(`✅ Bot lancé sur ${client.user.tag}`);
   await refreshAll();
 });
 
 client.on("interactionCreate", async interaction => {
   const member = interaction.member;
-  const name = member.nickname || interaction.user.username;
+  const username = member.nickname || interaction.user.username;
 
-  // --- COMMANDE DEVIS ---
+  // 1. COMMANDE /DEVIS
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
-    if (!member.roles.cache.some(role => role.name === PHOTO_ROLE)) return interaction.reply({ content: "❌ Accès refusé", flags: 64 });
+    if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) return interaction.reply({ content: "❌ Réservé aux photographes.", flags: 64 });
 
     const data = {
       client: interaction.options.getString('client'),
       telephone: interaction.options.getString('telephone'),
-      photographe: name,
-      photos: interaction.options.getInteger('photos'),
+      photographe: username,
+      photos: interaction.options.getInteger('photos') || 0,
       description: interaction.options.getString('description'),
-      prix: interaction.options.getInteger('prix')
+      prix: interaction.options.getInteger('prix') || 0
     };
 
     const buffer = await createComplexDevis(data);
     const attachment = new AttachmentBuilder(buffer, { name: 'devis_attente.png' });
 
-    // Stockage temporaire des données dans le CustomID (attention limite 100 char)
-    // Pour un vrai système, il faudrait une base de données
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`accept_${data.client}_${data.prix}_${data.photos}`).setLabel('Signer et Accepter').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`acc_${data.client}_${data.prix}_${data.photos}`).setLabel('Signer et Accepter').setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`refuse`).setLabel('Refuser').setStyle(ButtonStyle.Danger),
     );
 
-    return interaction.reply({ content: `📄 Nouveau devis pour **${data.client}**`, files: [attachment], components: [row] });
+    return interaction.reply({ content: `📄 Devis envoyé pour **${data.client}**`, files: [attachment], components: [row] });
   }
 
-  // --- BOUTONS ---
+  // 2. INTERACTIONS BOUTONS
   if (interaction.isButton()) {
-    const [action, cName, cPrix, cPhotos] = interaction.customId.split("_");
+    const args = interaction.customId.split("_");
+    const action = args[0];
 
-    if (action === "accept") {
+    if (action === "acc") {
       await interaction.deferUpdate();
-      // On regénère l'image avec la signature
-      const buffer = await createComplexDevis({
-        client: cName,
-        prix: cPrix,
-        photos: cPhotos,
-        description: "Prestation Photo", // Simplifié pour le bouton
-        photographe: "Prime Network"
-      }, name); // 'name' est la signature du client qui clique
+      const clientName = args[1];
+      const prix = args[2];
+      const photos = args[3];
 
-      const attachment = new AttachmentBuilder(buffer, { name: 'devis_signe.png' });
-      return interaction.editReply({ content: `✅ Devis signé par **${name}**`, files: [attachment], components: [] });
+      const buffer = await createComplexDevis({
+        client: clientName,
+        prix: prix,
+        photos: photos,
+        description: "Prestation Photo (Validée)",
+        photographe: "Service Prime"
+      }, username); // 'username' devient la signature ici
+
+      const attachment = new AttachmentBuilder(buffer, { name: 'facture_signee.png' });
+      return interaction.editReply({ content: `✅ Facture signée par **${username}**`, files: [attachment], components: [] });
     }
 
     if (action === "refuse") return interaction.update({ content: "❌ Devis refusé.", components: [], files: [] });
 
-    // Statuts
-    if (interaction.channelId === PHOTO_CHANNEL_ID || interaction.channelId === MODEL_CHANNEL_ID) {
-      if (interaction.channelId === PHOTO_CHANNEL_ID && !member.roles.cache.some(r => r.name === PHOTO_ROLE)) return interaction.reply({ content: "❌ Rôle manquant", flags: 64 });
-      if (interaction.channelId === MODEL_CHANNEL_ID && !member.roles.cache.some(r => r.name === MODEL_ROLE)) return interaction.reply({ content: "❌ Rôle manquant", flags: 64 });
+    // BOUTONS DISPO
+    if (interaction.customId === "dispo_on" || interaction.customId === "dispo_off") {
+      const isPhoto = interaction.channelId === PHOTO_CHANNEL_ID;
+      const isModel = interaction.channelId === MODEL_CHANNEL_ID;
 
-      const target = interaction.channelId === PHOTO_CHANNEL_ID ? photoStatuses : modelStatuses;
-      target[name] = interaction.customId === "dispo_on" ? "🟢" : "🔴";
+      if (isPhoto && !member.roles.cache.some(r => r.name === PHOTO_ROLE)) return interaction.reply({ content: "❌ Rôle manquant.", flags: 64 });
+      if (isModel && !member.roles.cache.some(r => r.name === MODEL_ROLE)) return interaction.reply({ content: "❌ Rôle manquant.", flags: 64 });
+
+      const target = isPhoto ? photoStatuses : modelStatuses;
+      target[username] = interaction.customId === "dispo_on" ? "🟢" : "🔴";
+      
       saveStatuses({ photoStatuses, modelStatuses });
       await refreshAll();
-      return interaction.reply({ content: "Statut mis à jour", flags: 64 });
+      return interaction.reply({ content: "Statut mis à jour !", flags: 64 });
     }
   }
 
-  // --- WATERMARK (Gardé du code précédent) ---
+  // 3. COMMANDE /WATERMARK
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
-     // ... (Recopier ici ton code Sharp précédent si nécessaire)
-     // Il fonctionne déjà bien, pense juste à bien gérer les fichiers temporaires
+    if (interaction.channelId !== WATERMARK_CHANNEL_ID) return interaction.reply({ content: "❌ Mauvais salon.", flags: 64 });
+    
+    await interaction.deferReply();
+    const attach = interaction.options.getAttachment("image");
+    const pos = interaction.options.getString("position") || "southeast";
+    const logoIdx = interaction.options.getString("logo") || "1";
+
+    const watermarkFile = logoIdx === "1" ? "watermark.png" : (logoIdx === "2" ? "watermark2.png" : "watermark3.png");
+    const watermarkPath = path.join(__dirname, watermarkFile);
+
+    https.get(attach.url, (res) => {
+      const chunks = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", async () => {
+        const inputBuffer = Buffer.concat(chunks);
+        const image = sharp(inputBuffer);
+        const meta = await image.metadata();
+
+        const wMark = await sharp(watermarkPath)
+          .resize({ width: Math.floor(meta.width * 0.15), fit: "inside" })
+          .toBuffer();
+
+        const output = await image.composite([{ input: wMark, gravity: pos }]).toBuffer();
+        await interaction.editReply({ files: [new AttachmentBuilder(output, { name: 'watermarked.png' })] });
+      });
+    });
   }
 });
 
