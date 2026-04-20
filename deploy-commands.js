@@ -96,7 +96,18 @@ const commands = [
     ]
   }
 ];
-
+{
+  name: 'devis',
+  description: 'Créer un devis',
+  options: [
+    { name: 'client', type: 3, description: 'Nom du client', required: true },
+    { name: 'telephone', type: 3, description: 'Téléphone', required: true },
+    { name: 'photographe', type: 3, description: 'Photographe', required: true },
+    { name: 'photos', type: 4, description: 'Nombre de photos', required: true },
+    { name: 'description', type: 3, description: 'Description', required: true },
+    { name: 'prix', type: 4, description: 'Prix', required: true }
+  ]
+}
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
