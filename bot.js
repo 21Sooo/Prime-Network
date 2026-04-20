@@ -50,7 +50,7 @@ const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data,
 
 let { photoStatuses, modelStatuses } = getStatuses();
 
-// --- GÉNÉRATEUR DE DEVIS (COORDONNÉES CORRIGÉES) ---
+// --- GÉNÉRATEUR DE DEVIS (CALIBRAGE FINAL 778x1124) ---
 async function createPrimeDevis(data, signatureName = null) {
   const templatePath = path.join(__dirname, 'devis_template.png');
   const background = await loadImage(templatePath);
@@ -59,58 +59,54 @@ async function createPrimeDevis(data, signatureName = null) {
 
   ctx.drawImage(background, 0, 0);
 
-  // Style de texte
+  // Configuration du texte : Noir profond
   ctx.fillStyle = "#000000";
-  ctx.font = "32px 'PrimeFont', sans-serif";
-  ctx.textBaseline = "middle";
+  ctx.textAlign = "left"; 
+  ctx.textBaseline = "bottom"; // On utilise le bas pour aligner sur tes lignes blanches
 
-  // --- REGLAGES DES COORDONNÉES CORRIGÉS (POUR FORMAT 1241x1755) ---
-  
   // 1. Informations Client
-  // Nom/Prénom:
-  ctx.fillText(data.client || "", 265, 325);
-  
-  // Téléphone:
-  ctx.fillText(data.telephone || "", 230, 395);
+  ctx.font = "22px 'PrimeFont', sans-serif";
+  ctx.fillText(data.client || "", 215, 235);      // Ligne Nom/Prénom
+  ctx.fillText(data.telephone || "", 195, 275);   // Ligne Téléphone
 
   // 2. Détails de la Prestation
-  // Nombre de photos:
-  ctx.fillText(data.photos || "0", 325, 540);
+  ctx.fillText(data.photos || "0", 255, 385);     // Ligne Nombre de photos
   
-  // 3. Description (Zone de texte sous le label)
-  ctx.font = "28px 'PrimeFont', sans-serif";
+  // 3. Description (Bloc de texte)
+  ctx.textBaseline = "top"; // Repasse en "top" pour le paragraphe
+  ctx.font = "18px 'PrimeFont', sans-serif";
   const words = (data.description || "").split(' ');
   let line = '';
-  let yDesc = 650; 
-  const xDesc = 65;
-  const maxWidth = 1100;
+  let yDesc = 470; 
+  const xDesc = 60;
+  const maxWidth = 650;
 
   for(let n = 0; n < words.length; n++) {
     let testLine = line + words[n] + ' ';
     if (ctx.measureText(testLine).width > maxWidth && n > 0) {
       ctx.fillText(line, xDesc, yDesc);
       line = words[n] + ' ';
-      yDesc += 45; 
+      yDesc += 25; 
     } else { line = testLine; }
   }
   ctx.fillText(line, xDesc, yDesc);
 
   // 4. Prix Total
-  // Montant total (TTC):
-  ctx.font = "bold 38px 'PrimeFont', sans-serif";
-  ctx.fillText(`${data.prix || 0} €`, 345, 760);
+  ctx.textBaseline = "bottom";
+  ctx.font = "bold 26px 'PrimeFont', sans-serif";
+  ctx.fillText(`${data.prix || 0}`, 520, 795); // Aligné avant le symbole € de ton image
 
   // 5. Signature
   if (signatureName) {
-    ctx.font = "60px 'SignatureFont', cursive";
-    ctx.fillStyle = "#1a237e"; // Bleu stylo
-    ctx.fillText(signatureName, 120, 950); 
+    ctx.font = "45px 'SignatureFont', cursive";
+    ctx.fillStyle = "#1a237e"; 
+    ctx.fillText(signatureName, 100, 1000); 
   }
 
   return canvas.toBuffer();
 }
 
-// --- LOGIQUE PLANNING & DASHBOARD ---
+// --- LOGIQUE PLANNING & DASHBOARD (Inchangée) ---
 const dispoButtons = new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId("dispo_on").setLabel("🟢 Disponible").setStyle(ButtonStyle.Success),
   new ButtonBuilder().setCustomId("dispo_off").setLabel("🔴 Indisponible").setStyle(ButtonStyle.Danger)
@@ -156,9 +152,8 @@ async function refreshAll() {
   await updatePanel(DASHBOARD_CHANNEL_ID, generateDashboardEmbed(), "dashboardMessageId");
 }
 
-// --- ÉVÉNEMENTS ---
 client.once("ready", async () => {
-  console.log(`✅ Bot Prime Network connecté !`);
+  console.log(`✅ Bot connecté ! Calibrage 778x1124 appliqué.`);
   await refreshAll();
 });
 
