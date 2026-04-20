@@ -25,18 +25,14 @@ const WATERMARK_CHANNEL_ID = "1462586238648324146";
 const PHOTO_ROLE = "🎥・Prime Photographer";
 const MODEL_ROLE = "👠・Prime Model";
 
-// --- ENREGISTREMENT DES POLICES ---
 const fontPath = path.join(__dirname, 'Roboto-Regular.ttf');
 const sigPath = path.join(__dirname, 'DancingScript.ttf');
 
 if (fs.existsSync(fontPath)) registerFont(fontPath, { family: 'PrimeFont' });
 if (fs.existsSync(sigPath)) registerFont(sigPath, { family: 'SignatureFont' });
 
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
-});
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-// --- GESTION DES FICHIERS DE DONNÉES ---
 const panelFile = "./panels.json";
 const statusFile = "./statuses.json";
 
@@ -50,7 +46,7 @@ const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data,
 
 let { photoStatuses, modelStatuses } = getStatuses();
 
-// --- GÉNÉRATEUR DE DEVIS (CALIBRAGE SUR MESURE 778x1124) ---
+// --- GÉNÉRATEUR DE DEVIS (CALIBRAGE POUR TEMPLATE 778x1124) ---
 async function createPrimeDevis(data, signatureName = null) {
   const templatePath = path.join(__dirname, 'devis_template.png');
   const background = await loadImage(templatePath);
@@ -59,53 +55,53 @@ async function createPrimeDevis(data, signatureName = null) {
 
   ctx.drawImage(background, 0, 0);
 
-  ctx.fillStyle = "#000000";
-  ctx.textAlign = "left"; 
+  ctx.fillStyle = "#10253F"; // Bleu foncé pro pour matcher ton template
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
 
-  // 1. Informations Client
-  ctx.textBaseline = "alphabetic"; 
-  ctx.font = "22px 'PrimeFont', sans-serif";
-  ctx.fillText(data.client || "", 205, 218);      // Ligne Nom/Prénom
-  ctx.fillText(data.telephone || "", 175, 258);   // Ligne Téléphone
+  // 1. Informations Client (Case du haut)
+  ctx.font = "20px 'PrimeFont', sans-serif";
+  ctx.fillText(data.client || "", 210, 222);      // Nom/Prénom
+  ctx.fillText(data.telephone || "", 185, 260);   // Téléphone
 
-  // 2. Détails de la Prestation
-  ctx.fillText(data.photos || "0", 245, 372);     // Ligne Nombre de photos
+  // 2. Détails de la Prestation (Case du milieu)
+  ctx.fillText(data.photos || "0", 255, 375);     // Nombre de photos
   
-  // 3. Description (ZONE CORRIGÉE)
-  ctx.textBaseline = "top"; 
+  // 3. Description (Grand rectangle blanc)
+  ctx.textBaseline = "top";
   ctx.font = "18px 'PrimeFont', sans-serif";
   const words = (data.description || "").split(' ');
   let line = '';
-  let yDesc = 475; // Positionné à l'intérieur du carré blanc sous "Description:"
-  const xDesc = 60;
-  const maxWidth = 660;
+  let yDesc = 510; // Milieu de la case description
+  const xDesc = 65;
+  const maxWidth = 650;
 
   for(let n = 0; n < words.length; n++) {
     let testLine = line + words[n] + ' ';
     if (ctx.measureText(testLine).width > maxWidth && n > 0) {
       ctx.fillText(line, xDesc, yDesc);
       line = words[n] + ' ';
-      yDesc += 25; 
+      yDesc += 25;
     } else { line = testLine; }
   }
   ctx.fillText(line, xDesc, yDesc);
 
-  // 4. Prix Total
+  // 4. Prix Total (Avant le symbole €)
   ctx.textBaseline = "alphabetic";
   ctx.font = "bold 26px 'PrimeFont', sans-serif";
-  ctx.fillText(`${data.prix || 0}`, 515, 788); // Aligné juste avant le "€" du template
+  ctx.fillText(`${data.prix || 0}`, 580, 792); 
 
-  // 5. Signature
+  // 5. Signature (Zone Signature/date)
   if (signatureName) {
-    ctx.font = "45px 'SignatureFont', cursive";
+    ctx.font = "40px 'SignatureFont', cursive";
     ctx.fillStyle = "#1a237e"; 
-    ctx.fillText(signatureName, 110, 980); 
+    ctx.fillText(signatureName, 140, 930); 
   }
 
   return canvas.toBuffer();
 }
 
-// --- LOGIQUE PLANNING & DASHBOARD ---
+// --- LOGIQUE PLANNING ---
 const dispoButtons = new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId("dispo_on").setLabel("🟢 Disponible").setStyle(ButtonStyle.Success),
   new ButtonBuilder().setCustomId("dispo_off").setLabel("🔴 Indisponible").setStyle(ButtonStyle.Danger)
@@ -152,7 +148,7 @@ async function refreshAll() {
 }
 
 client.once("ready", async () => {
-  console.log(`✅ Bot connecté ! Calibrage 778x1124 opérationnel.`);
+  console.log(`✅ Bot Prime Network prêt.`);
   await refreshAll();
 });
 
@@ -186,17 +182,17 @@ client.on("interactionCreate", async interaction => {
     if (interaction.customId.startsWith("sign_")) {
       const args = interaction.customId.split("_");
       const buffer = await createPrimeDevis({client: args[1], prix: args[2], photos: args[3]}, username);
-      return interaction.update({ content: `✅ Devis signé officiellement par **${username}**`, files: [new AttachmentBuilder(buffer, { name: 'facture_signee.png' })], components: [] });
+      return interaction.update({ content: `✅ Devis signé par **${username}**`, files: [new AttachmentBuilder(buffer, { name: 'facture_signee.png' })], components: [] });
     }
     
-    if (interaction.customId === "refuse") return interaction.update({ content: "❌ Le client a refusé le devis.", components: [], files: [] });
+    if (interaction.customId === "refuse") return interaction.update({ content: "❌ Devis refusé.", components: [], files: [] });
 
     if (interaction.customId.startsWith("dispo_")) {
       const target = interaction.channelId === PHOTO_CHANNEL_ID ? photoStatuses : modelStatuses;
       target[username] = interaction.customId === "dispo_on" ? "🟢" : "🔴";
       saveStatuses({ photoStatuses, modelStatuses });
       await refreshAll();
-      return interaction.reply({ content: "Disponibilité mise à jour !", flags: 64 });
+      return interaction.reply({ content: "Statut mis à jour.", flags: 64 });
     }
   }
 
@@ -220,8 +216,7 @@ client.on("interactionCreate", async interaction => {
           const out = await img.composite([{ input: wMark, gravity: pos }]).toBuffer();
           await interaction.editReply({ files: [new AttachmentBuilder(out, { name: 'prime_photo.png' })] });
         } catch (e) {
-          console.error(e);
-          await interaction.editReply("❌ Erreur lors du traitement de l'image.");
+          await interaction.editReply("❌ Erreur traitement.");
         }
       });
     });
