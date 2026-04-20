@@ -50,7 +50,7 @@ const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data,
 
 let { photoStatuses, modelStatuses } = getStatuses();
 
-// --- GÉNÉRATEUR DE DEVIS (ADAPTÉ 1241x1755) ---
+// --- GÉNÉRATEUR DE DEVIS (COORDONNÉES CORRIGÉES) ---
 async function createPrimeDevis(data, signatureName = null) {
   const templatePath = path.join(__dirname, 'devis_template.png');
   const background = await loadImage(templatePath);
@@ -59,25 +59,29 @@ async function createPrimeDevis(data, signatureName = null) {
 
   ctx.drawImage(background, 0, 0);
 
-  // Style de texte adapté à la résolution 1241x1755
+  // Style de texte
   ctx.fillStyle = "#000000";
-  ctx.font = "30px 'PrimeFont', sans-serif";
+  ctx.font = "32px 'PrimeFont', sans-serif";
   ctx.textBaseline = "middle";
 
-  // --- POSITIONNEMENT PRÉCIS ---
+  // --- REGLAGES DES COORDONNÉES CORRIGÉS (POUR FORMAT 1241x1755) ---
   
-  // Section Informations Client
-  ctx.fillText(data.client || "", 265, 395);      // Nom/Prénom
-  ctx.fillText(data.telephone || "", 230, 482);   // Téléphone
+  // 1. Informations Client
+  // Nom/Prénom:
+  ctx.fillText(data.client || "", 265, 325);
+  
+  // Téléphone:
+  ctx.fillText(data.telephone || "", 230, 395);
 
-  // Section Détails de la Prestation
-  ctx.fillText(data.photos || "0", 325, 655);     // Nombre de photos
+  // 2. Détails de la Prestation
+  // Nombre de photos:
+  ctx.fillText(data.photos || "0", 325, 540);
   
-  // Description (Bloc de texte dynamique)
+  // 3. Description (Zone de texte sous le label)
   ctx.font = "28px 'PrimeFont', sans-serif";
   const words = (data.description || "").split(' ');
   let line = '';
-  let yDesc = 785; 
+  let yDesc = 650; 
   const xDesc = 65;
   const maxWidth = 1100;
 
@@ -86,20 +90,21 @@ async function createPrimeDevis(data, signatureName = null) {
     if (ctx.measureText(testLine).width > maxWidth && n > 0) {
       ctx.fillText(line, xDesc, yDesc);
       line = words[n] + ' ';
-      yDesc += 45; // Interligne
+      yDesc += 45; 
     } else { line = testLine; }
   }
   ctx.fillText(line, xDesc, yDesc);
 
-  // Section Prix Total
-  ctx.font = "bold 35px 'PrimeFont', sans-serif";
-  ctx.fillText(`${data.prix || 0} €`, 345, 925);
+  // 4. Prix Total
+  // Montant total (TTC):
+  ctx.font = "bold 38px 'PrimeFont', sans-serif";
+  ctx.fillText(`${data.prix || 0} €`, 345, 760);
 
-  // Section Signature (Utilisée lors de la validation)
+  // 5. Signature
   if (signatureName) {
-    ctx.font = "55px 'SignatureFont', cursive";
+    ctx.font = "60px 'SignatureFont', cursive";
     ctx.fillStyle = "#1a237e"; // Bleu stylo
-    ctx.fillText(signatureName, 90, 1160);
+    ctx.fillText(signatureName, 120, 950); 
   }
 
   return canvas.toBuffer();
@@ -153,7 +158,7 @@ async function refreshAll() {
 
 // --- ÉVÉNEMENTS ---
 client.once("ready", async () => {
-  console.log(`✅ Bot Prime Network connecté ! Format image détecté : 1241x1755`);
+  console.log(`✅ Bot Prime Network connecté !`);
   await refreshAll();
 });
 
