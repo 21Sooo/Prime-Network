@@ -50,7 +50,7 @@ const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data,
 
 let { photoStatuses, modelStatuses } = getStatuses();
 
-// --- GÉNÉRATEUR DE DEVIS (CALIBRAGE FINAL 778x1124) ---
+// --- GÉNÉRATEUR DE DEVIS (CALIBRAGE SUR MESURE 778x1124) ---
 async function createPrimeDevis(data, signatureName = null) {
   const templatePath = path.join(__dirname, 'devis_template.png');
   const background = await loadImage(templatePath);
@@ -59,27 +59,26 @@ async function createPrimeDevis(data, signatureName = null) {
 
   ctx.drawImage(background, 0, 0);
 
-  // Configuration du texte : Noir profond
   ctx.fillStyle = "#000000";
   ctx.textAlign = "left"; 
-  ctx.textBaseline = "bottom"; // On utilise le bas pour aligner sur tes lignes blanches
 
   // 1. Informations Client
+  ctx.textBaseline = "alphabetic"; 
   ctx.font = "22px 'PrimeFont', sans-serif";
-  ctx.fillText(data.client || "", 215, 235);      // Ligne Nom/Prénom
-  ctx.fillText(data.telephone || "", 195, 275);   // Ligne Téléphone
+  ctx.fillText(data.client || "", 205, 218);      // Ligne Nom/Prénom
+  ctx.fillText(data.telephone || "", 175, 258);   // Ligne Téléphone
 
   // 2. Détails de la Prestation
-  ctx.fillText(data.photos || "0", 255, 385);     // Ligne Nombre de photos
+  ctx.fillText(data.photos || "0", 245, 372);     // Ligne Nombre de photos
   
-  // 3. Description (Bloc de texte)
-  ctx.textBaseline = "top"; // Repasse en "top" pour le paragraphe
+  // 3. Description (ZONE CORRIGÉE)
+  ctx.textBaseline = "top"; 
   ctx.font = "18px 'PrimeFont', sans-serif";
   const words = (data.description || "").split(' ');
   let line = '';
-  let yDesc = 470; 
+  let yDesc = 475; // Positionné à l'intérieur du carré blanc sous "Description:"
   const xDesc = 60;
-  const maxWidth = 650;
+  const maxWidth = 660;
 
   for(let n = 0; n < words.length; n++) {
     let testLine = line + words[n] + ' ';
@@ -92,21 +91,21 @@ async function createPrimeDevis(data, signatureName = null) {
   ctx.fillText(line, xDesc, yDesc);
 
   // 4. Prix Total
-  ctx.textBaseline = "bottom";
+  ctx.textBaseline = "alphabetic";
   ctx.font = "bold 26px 'PrimeFont', sans-serif";
-  ctx.fillText(`${data.prix || 0}`, 520, 795); // Aligné avant le symbole € de ton image
+  ctx.fillText(`${data.prix || 0}`, 515, 788); // Aligné juste avant le "€" du template
 
   // 5. Signature
   if (signatureName) {
     ctx.font = "45px 'SignatureFont', cursive";
     ctx.fillStyle = "#1a237e"; 
-    ctx.fillText(signatureName, 100, 1000); 
+    ctx.fillText(signatureName, 110, 980); 
   }
 
   return canvas.toBuffer();
 }
 
-// --- LOGIQUE PLANNING & DASHBOARD (Inchangée) ---
+// --- LOGIQUE PLANNING & DASHBOARD ---
 const dispoButtons = new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId("dispo_on").setLabel("🟢 Disponible").setStyle(ButtonStyle.Success),
   new ButtonBuilder().setCustomId("dispo_off").setLabel("🔴 Indisponible").setStyle(ButtonStyle.Danger)
@@ -153,7 +152,7 @@ async function refreshAll() {
 }
 
 client.once("ready", async () => {
-  console.log(`✅ Bot connecté ! Calibrage 778x1124 appliqué.`);
+  console.log(`✅ Bot connecté ! Calibrage 778x1124 opérationnel.`);
   await refreshAll();
 });
 
