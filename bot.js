@@ -25,14 +25,21 @@ const WATERMARK_CHANNEL_ID = "1462586238648324146";
 const PHOTO_ROLE = "🎥・Prime Photographer";
 const MODEL_ROLE = "👠・Prime Model";
 
+// --- MÉMOIRE TEMPORAIRE (CORRECTION BUG DESCRIPTION) ---
+const devisCache = new Map();
+
+// --- ENREGISTREMENT DES POLICES ---
 const fontPath = path.join(__dirname, 'Roboto-Regular.ttf');
 const sigPath = path.join(__dirname, 'DancingScript.ttf');
 
 if (fs.existsSync(fontPath)) registerFont(fontPath, { family: 'PrimeFont' });
 if (fs.existsSync(sigPath)) registerFont(sigPath, { family: 'SignatureFont' });
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds]
+});
 
+// --- GESTION DES FICHIERS DE DONNÉES ---
 const panelFile = "./panels.json";
 const statusFile = "./statuses.json";
 
@@ -46,56 +53,73 @@ const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data,
 
 let { photoStatuses, modelStatuses } = getStatuses();
 
-// --- GÉNÉRATEUR DE DEVIS (CALIBRAGE POUR TEMPLATE 778x1124) ---
+// --- GÉNÉRATEUR SUR PAGE BLANCHE (PLUS DE DÉCALAGE) ---
 async function createPrimeDevis(data, signatureName = null) {
-  const templatePath = path.join(__dirname, 'devis_template.png');
-  const background = await loadImage(templatePath);
-  const canvas = createCanvas(background.width, background.height);
+  const canvas = createCanvas(800, 1000);
   const ctx = canvas.getContext('2d');
 
-  ctx.drawImage(background, 0, 0);
+  // Fond Blanc
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, 800, 1000);
 
-  ctx.fillStyle = "#10253F"; // Bleu foncé pro pour matcher ton template
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-
-  // 1. Informations Client (Case du haut)
-  ctx.font = "20px 'PrimeFont', sans-serif";
-  ctx.fillText(data.client || "", 210, 222);      // Nom/Prénom
-  ctx.fillText(data.telephone || "", 185, 260);   // Téléphone
-
-  // 2. Détails de la Prestation (Case du milieu)
-  ctx.fillText(data.photos || "0", 255, 375);     // Nombre de photos
+  // En-tête (Rectangle Noir)
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, 800, 150);
   
-  // 3. Description (Grand rectangle blanc)
-  ctx.textBaseline = "top";
-  ctx.font = "18px 'PrimeFont', sans-serif";
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 40px sans-serif";
+  ctx.fillText("PRIME NETWORK", 50, 70);
+  ctx.font = "20px sans-serif";
+  ctx.fillText("DEVIS & FACTURATION OFFICIELLE", 50, 110);
+
+  // Contenu (Noir)
+  ctx.fillStyle = "#000000";
+  ctx.font = "bold 22px sans-serif";
+  ctx.fillText(`CLIENT : ${data.client || "Inconnu"}`, 50, 220);
+  
+  ctx.font = "18px sans-serif";
+  ctx.fillText(`Téléphone : ${data.telephone || "Non renseigné"}`, 50, 260);
+  ctx.fillText(`Prestation : ${data.photos || 0} photo(s)`, 50, 290);
+
+  // Ligne de séparation
+  ctx.strokeStyle = "#000000";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(50, 330);
+  ctx.lineTo(750, 330);
+  ctx.stroke();
+
+  // Zone Description
+  ctx.font = "bold 18px sans-serif";
+  ctx.fillText("DESCRIPTION DÉTAILLÉE :", 50, 370);
+  
+  ctx.font = "16px sans-serif";
   const words = (data.description || "").split(' ');
   let line = '';
-  let yDesc = 510; // Milieu de la case description
-  const xDesc = 65;
-  const maxWidth = 650;
-
+  let yDesc = 405;
   for(let n = 0; n < words.length; n++) {
     let testLine = line + words[n] + ' ';
-    if (ctx.measureText(testLine).width > maxWidth && n > 0) {
-      ctx.fillText(line, xDesc, yDesc);
+    if (ctx.measureText(testLine).width > 680 && n > 0) {
+      ctx.fillText(line, 50, yDesc);
       line = words[n] + ' ';
       yDesc += 25;
     } else { line = testLine; }
   }
-  ctx.fillText(line, xDesc, yDesc);
+  ctx.fillText(line, 50, yDesc);
 
-  // 4. Prix Total (Avant le symbole €)
-  ctx.textBaseline = "alphabetic";
-  ctx.font = "bold 26px 'PrimeFont', sans-serif";
-  ctx.fillText(`${data.prix || 0}`, 580, 792); 
+  // Prix
+  ctx.font = "bold 30px sans-serif";
+  ctx.fillText(`TOTAL À RÉGLER : ${data.prix || 0} €`, 50, 850);
 
-  // 5. Signature (Zone Signature/date)
+  // Signature
   if (signatureName) {
-    ctx.font = "40px 'SignatureFont', cursive";
+    ctx.font = "45px 'SignatureFont', cursive";
     ctx.fillStyle = "#1a237e"; 
-    ctx.fillText(signatureName, 140, 930); 
+    ctx.fillText(signatureName, 450, 920);
+    
+    ctx.fillStyle = "#000000";
+    ctx.font = "italic 14px sans-serif";
+    ctx.fillText("Signé numériquement le " + new Date().toLocaleDateString(), 450, 950);
   }
 
   return canvas.toBuffer();
@@ -147,8 +171,9 @@ async function refreshAll() {
   await updatePanel(DASHBOARD_CHANNEL_ID, generateDashboardEmbed(), "dashboardMessageId");
 }
 
+// --- INTERACTIONS ---
 client.once("ready", async () => {
-  console.log(`✅ Bot Prime Network prêt.`);
+  console.log(`✅ Bot Prime Network en ligne (Mode Page Blanche + Cache activé)`);
   await refreshAll();
 });
 
@@ -169,30 +194,49 @@ client.on("interactionCreate", async interaction => {
       photographe: username
     };
 
+    // SAUVEGARDE DANS LE CACHE POUR ÉVITER LA PERTE DE DESCRIPTION
+    const devisId = `devis_${Date.now()}`;
+    devisCache.set(devisId, data);
+
     const buffer = await createPrimeDevis(data);
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`sign_${data.client.replace(/\s/g, '')}_${data.prix}_${data.photos}`).setLabel('Signer').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`sign_${devisId}`).setLabel('Signer').setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId('refuse').setLabel('Refuser').setStyle(ButtonStyle.Danger)
     );
 
-    return interaction.editReply({ content: `📄 Nouveau devis pour **${data.client}**`, files: [new AttachmentBuilder(buffer, { name: 'devis.png' })], components: [row] });
+    return interaction.editReply({ 
+        content: `📄 Nouveau devis généré pour **${data.client}**`, 
+        files: [new AttachmentBuilder(buffer, { name: 'devis.png' })], 
+        components: [row] 
+    });
   }
 
   if (interaction.isButton()) {
-    if (interaction.customId.startsWith("sign_")) {
-      const args = interaction.customId.split("_");
-      const buffer = await createPrimeDevis({client: args[1], prix: args[2], photos: args[3]}, username);
-      return interaction.update({ content: `✅ Devis signé par **${username}**`, files: [new AttachmentBuilder(buffer, { name: 'facture_signee.png' })], components: [] });
+    // GESTION DU BOUTON SIGNER (RÉCUPÉRATION DU CACHE)
+    if (interaction.customId.startsWith("sign_devis_")) {
+      const devisId = interaction.customId.replace("sign_", "");
+      const cachedData = devisCache.get(devisId);
+
+      if (!cachedData) return interaction.reply({ content: "❌ Erreur : Ce devis a expiré en mémoire. Merci de le relancer.", flags: 64 });
+
+      const buffer = await createPrimeDevis(cachedData, username);
+      await interaction.update({ 
+        content: `✅ Devis accepté et signé par **${username}**`, 
+        files: [new AttachmentBuilder(buffer, { name: 'facture_signee.png' })], 
+        components: [] 
+      });
+      
+      return devisCache.delete(devisId); // Nettoyage
     }
     
-    if (interaction.customId === "refuse") return interaction.update({ content: "❌ Devis refusé.", components: [], files: [] });
+    if (interaction.customId === "refuse") return interaction.update({ content: "❌ Le client a refusé le devis.", components: [], files: [] });
 
     if (interaction.customId.startsWith("dispo_")) {
       const target = interaction.channelId === PHOTO_CHANNEL_ID ? photoStatuses : modelStatuses;
       target[username] = interaction.customId === "dispo_on" ? "🟢" : "🔴";
       saveStatuses({ photoStatuses, modelStatuses });
       await refreshAll();
-      return interaction.reply({ content: "Statut mis à jour.", flags: 64 });
+      return interaction.reply({ content: "Disponibilité mise à jour !", flags: 64 });
     }
   }
 
@@ -216,7 +260,7 @@ client.on("interactionCreate", async interaction => {
           const out = await img.composite([{ input: wMark, gravity: pos }]).toBuffer();
           await interaction.editReply({ files: [new AttachmentBuilder(out, { name: 'prime_photo.png' })] });
         } catch (e) {
-          await interaction.editReply("❌ Erreur traitement.");
+          await interaction.editReply("❌ Erreur traitement image.");
         }
       });
     });
