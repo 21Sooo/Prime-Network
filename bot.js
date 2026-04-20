@@ -26,7 +26,6 @@ const PHOTO_ROLE = "🎥・Prime Photographer";
 const MODEL_ROLE = "👠・Prime Model";
 
 // --- ENREGISTREMENT DES POLICES ---
-// Assure-toi que ces fichiers sont bien à la racine de ton GitHub !
 const fontPath = path.join(__dirname, 'Roboto-Regular.ttf');
 const sigPath = path.join(__dirname, 'DancingScript.ttf');
 
@@ -51,53 +50,56 @@ const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data,
 
 let { photoStatuses, modelStatuses } = getStatuses();
 
-// --- GÉNÉRATEUR DE DEVIS (COORDONNÉES PRÉCISES) ---
+// --- GÉNÉRATEUR DE DEVIS OPTIMISÉ ---
 async function createPrimeDevis(data, signatureName = null) {
-  const templatePath = path.join(__dirname, 'devis_template.png'); // Ton nouveau template noir
+  const templatePath = path.join(__dirname, 'devis_template.png');
   const background = await loadImage(templatePath);
   const canvas = createCanvas(background.width, background.height);
   const ctx = canvas.getContext('2d');
 
   ctx.drawImage(background, 0, 0);
 
-  // Style de texte : Noir, moderne et propre
+  // Style de texte standard
   ctx.fillStyle = "#000000";
-  ctx.font = "22px 'PrimeFont', sans-serif";
+  ctx.font = "24px 'PrimeFont', sans-serif";
   ctx.textBaseline = "middle";
 
-  // --- POSITIONNEMENT SUR LE NOUVEAU TEMPLATE ---
+  // --- POSITIONNEMENT SUR LE TEMPLATE ---
   
   // Section Informations Client
-  ctx.fillText(data.client || "", 210, 315);      // En face de Nom/Prénom
-  ctx.fillText(data.telephone || "", 170, 385);   // En face de Téléphone
+  ctx.fillText(data.client || "", 215, 318);      // Nom/Prénom
+  ctx.fillText(data.telephone || "", 185, 388);   // Téléphone
 
   // Section Détails de la Prestation
-  ctx.fillText(data.photos || "0", 250, 528);     // En face de Nombre de photos
+  ctx.fillText(data.photos || "0", 260, 528);     // Nombre de photos
   
-  // Description (un peu plus bas car c'est un bloc de texte)
-  ctx.font = "20px 'PrimeFont', sans-serif";
+  // Description (Bloc de texte avec retour à la ligne)
+  ctx.font = "22px 'PrimeFont', sans-serif";
   const words = (data.description || "").split(' ');
   let line = '';
-  let yDesc = 620;
+  let yDesc = 635;
+  const xDesc = 50;
+  const maxWidth = 900;
+
   for(let n = 0; n < words.length; n++) {
     let testLine = line + words[n] + ' ';
-    if (ctx.measureText(testLine).width > 600 && n > 0) {
-      ctx.fillText(line, 50, yDesc);
+    if (ctx.measureText(testLine).width > maxWidth && n > 0) {
+      ctx.fillText(line, xDesc, yDesc);
       line = words[n] + ' ';
-      yDesc += 30;
+      yDesc += 35;
     } else { line = testLine; }
   }
-  ctx.fillText(line, 50, yDesc);
+  ctx.fillText(line, xDesc, yDesc);
 
   // Section Prix Total
-  ctx.font = "bold 26px 'PrimeFont', sans-serif";
-  ctx.fillText(`${data.prix || 0} €`, 270, 742);
+  ctx.font = "bold 28px 'PrimeFont', sans-serif";
+  ctx.fillText(`${data.prix || 0} €`, 275, 745);
 
-  // Section Signature (Si acceptée)
+  // Section Signature
   if (signatureName) {
-    ctx.font = "40px 'SignatureFont', cursive";
+    ctx.font = "45px 'SignatureFont', cursive";
     ctx.fillStyle = "#1a237e"; // Bleu stylo
-    ctx.fillText(signatureName, 80, 925);
+    ctx.fillText(signatureName, 70, 935);
   }
 
   return canvas.toBuffer();
@@ -151,7 +153,7 @@ async function refreshAll() {
 
 // --- ÉVÉNEMENTS ---
 client.once("ready", async () => {
-  console.log(`✅ Bot Prime Network connecté !`);
+  console.log(`✅ Bot Prime Network connecté et prêt !`);
   await refreshAll();
 });
 
@@ -199,7 +201,6 @@ client.on("interactionCreate", async interaction => {
     }
   }
 
-  // --- WATERMARK ---
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
     if (interaction.channelId !== WATERMARK_CHANNEL_ID) return interaction.reply({ content: "❌ Mauvais salon.", flags: 64 });
     await interaction.deferReply();
@@ -212,12 +213,17 @@ client.on("interactionCreate", async interaction => {
       const chunks = [];
       res.on("data", (c) => chunks.push(c));
       res.on("end", async () => {
-        const input = Buffer.concat(chunks);
-        const img = sharp(input);
-        const meta = await img.metadata();
-        const wMark = await sharp(path.join(__dirname, watermarkFile)).resize({ width: Math.floor(meta.width * 0.15) }).toBuffer();
-        const out = await img.composite([{ input: wMark, gravity: pos }]).toBuffer();
-        await interaction.editReply({ files: [new AttachmentBuilder(out, { name: 'prime_photo.png' })] });
+        try {
+          const input = Buffer.concat(chunks);
+          const img = sharp(input);
+          const meta = await img.metadata();
+          const wMark = await sharp(path.join(__dirname, watermarkFile)).resize({ width: Math.floor(meta.width * 0.15) }).toBuffer();
+          const out = await img.composite([{ input: wMark, gravity: pos }]).toBuffer();
+          await interaction.editReply({ files: [new AttachmentBuilder(out, { name: 'prime_photo.png' })] });
+        } catch (e) {
+          console.error(e);
+          await interaction.editReply("❌ Erreur lors du traitement de l'image.");
+        }
       });
     });
   }
