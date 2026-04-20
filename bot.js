@@ -36,7 +36,7 @@ if (fs.existsSync(fontPath)) registerFont(fontPath, { family: 'PrimeFont' });
 if (fs.existsSync(sigPath)) registerFont(sigPath, { family: 'SignatureFont' });
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+  intents: [GatewayIntentBits.Guilds]
 });
 
 // --- GESTION DES FICHIERS DE DONNÉES ---
@@ -53,14 +53,16 @@ const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data,
 
 let { photoStatuses, modelStatuses } = getStatuses();
 
-// --- GÉNÉRATEUR SUR PAGE BLANCHE ---
+// --- GÉNÉRATEUR SUR PAGE BLANCHE (PLUS DE DÉCALAGE) ---
 async function createPrimeDevis(data, signatureName = null) {
   const canvas = createCanvas(800, 1000);
   const ctx = canvas.getContext('2d');
 
+  // Fond Blanc
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, 800, 1000);
 
+  // En-tête (Rectangle Noir)
   ctx.fillStyle = "#000000";
   ctx.fillRect(0, 0, 800, 150);
   
@@ -70,6 +72,7 @@ async function createPrimeDevis(data, signatureName = null) {
   ctx.font = "20px sans-serif";
   ctx.fillText("DEVIS & FACTURATION OFFICIELLE", 50, 110);
 
+  // Contenu (Noir)
   ctx.fillStyle = "#000000";
   ctx.font = "bold 22px sans-serif";
   ctx.fillText(`CLIENT : ${data.client || "Inconnu"}`, 50, 220);
@@ -78,6 +81,7 @@ async function createPrimeDevis(data, signatureName = null) {
   ctx.fillText(`Téléphone : ${data.telephone || "Non renseigné"}`, 50, 260);
   ctx.fillText(`Prestation : ${data.photos || 0} photo(s)`, 50, 290);
 
+  // Ligne de séparation
   ctx.strokeStyle = "#000000";
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -85,6 +89,7 @@ async function createPrimeDevis(data, signatureName = null) {
   ctx.lineTo(750, 330);
   ctx.stroke();
 
+  // Zone Description
   ctx.font = "bold 18px sans-serif";
   ctx.fillText("DESCRIPTION DÉTAILLÉE :", 50, 370);
   
@@ -102,9 +107,11 @@ async function createPrimeDevis(data, signatureName = null) {
   }
   ctx.fillText(line, 50, yDesc);
 
+  // Prix
   ctx.font = "bold 30px sans-serif";
   ctx.fillText(`TOTAL À RÉGLER : ${data.prix || 0} €`, 50, 850);
 
+  // Signature
   if (signatureName) {
     ctx.font = "45px 'SignatureFont', cursive";
     ctx.fillStyle = "#1a237e"; 
@@ -125,12 +132,12 @@ const dispoButtons = new ActionRowBuilder().addComponents(
 );
 
 function generatePhotoEmbed() {
-  const desc = Object.entries(photoStatuses).map(([id, e]) => `• <@${id}> → ${e}`).join("\n") || "_Aucun photographe_";
+  const desc = Object.entries(photoStatuses).map(([u, e]) => `• **${u}** → ${e}`).join("\n") || "_Aucun photographe_";
   return new EmbedBuilder().setTitle("📸 Planning Photographes").setColor("#00bfff").setDescription(desc).setTimestamp();
 }
 
 function generateModelEmbed() {
-  const desc = Object.entries(modelStatuses).map(([id, e]) => `• <@${id}> → ${e}`).join("\n") || "_Aucun modèle_";
+  const desc = Object.entries(modelStatuses).map(([u, e]) => `• **${u}** → ${e}`).join("\n") || "_Aucun modèle_";
   return new EmbedBuilder().setTitle("👠 Planning Modèles").setColor("#ff69b4").setDescription(desc).setTimestamp();
 }
 
@@ -166,7 +173,7 @@ async function refreshAll() {
 
 // --- INTERACTIONS ---
 client.once("ready", async () => {
-  console.log(`✅ Bot Prime Network en ligne (Mode Ping ID Activé)`);
+  console.log(`✅ Bot Prime Network en ligne (Mode Page Blanche + Cache activé)`);
   await refreshAll();
 });
 
@@ -174,7 +181,6 @@ client.on("interactionCreate", async interaction => {
   const member = interaction.member;
   const username = member.nickname || interaction.user.username;
 
-  // --- COMMANDE DEVIS ---
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
     if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) return interaction.reply({ content: "❌ Réservé aux Photographes.", flags: 64 });
     
@@ -188,6 +194,7 @@ client.on("interactionCreate", async interaction => {
       photographe: username
     };
 
+    // SAUVEGARDE DANS LE CACHE POUR ÉVITER LA PERTE DE DESCRIPTION
     const devisId = `devis_${Date.now()}`;
     devisCache.set(devisId, data);
 
@@ -204,31 +211,13 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  // --- COMMANDE PING PHOTOGRAPHES ---
-  if (interaction.isChatInputCommand() && interaction.commandName === "ping-photo") {
-    const type = interaction.options.getString('statut'); // "dispo" ou "indispo"
-    const targetEmoji = type === "dispo" ? "🟢" : "🔴";
-    
-    const pings = Object.entries(photoStatuses)
-      .filter(([id, status]) => status === targetEmoji)
-      .map(([id]) => `<@${id}>`);
-
-    if (pings.length === 0) {
-      return interaction.reply({ content: `Aucun photographe n'est actuellement **${type}**.`, flags: 64 });
-    }
-
-    return interaction.reply({ 
-      content: `🔔 **Appel aux photographes ${type}s :**\n${pings.join(' ')}` 
-    });
-  }
-
-  // --- BOUTONS ---
   if (interaction.isButton()) {
+    // GESTION DU BOUTON SIGNER (RÉCUPÉRATION DU CACHE)
     if (interaction.customId.startsWith("sign_devis_")) {
       const devisId = interaction.customId.replace("sign_", "");
       const cachedData = devisCache.get(devisId);
 
-      if (!cachedData) return interaction.reply({ content: "❌ Erreur : Ce devis a expiré.", flags: 64 });
+      if (!cachedData) return interaction.reply({ content: "❌ Erreur : Ce devis a expiré en mémoire. Merci de le relancer.", flags: 64 });
 
       const buffer = await createPrimeDevis(cachedData, username);
       await interaction.update({ 
@@ -237,22 +226,20 @@ client.on("interactionCreate", async interaction => {
         components: [] 
       });
       
-      return devisCache.delete(devisId);
+      return devisCache.delete(devisId); // Nettoyage
     }
     
     if (interaction.customId === "refuse") return interaction.update({ content: "❌ Le client a refusé le devis.", components: [], files: [] });
 
-    // Mise à jour dispo (Stockage par ID)
     if (interaction.customId.startsWith("dispo_")) {
       const target = interaction.channelId === PHOTO_CHANNEL_ID ? photoStatuses : modelStatuses;
-      target[interaction.user.id] = interaction.customId === "dispo_on" ? "🟢" : "🔴";
+      target[username] = interaction.customId === "dispo_on" ? "🟢" : "🔴";
       saveStatuses({ photoStatuses, modelStatuses });
       await refreshAll();
       return interaction.reply({ content: "Disponibilité mise à jour !", flags: 64 });
     }
   }
 
-  // --- WATERMARK ---
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
     if (interaction.channelId !== WATERMARK_CHANNEL_ID) return interaction.reply({ content: "❌ Mauvais salon.", flags: 64 });
     await interaction.deferReply();
