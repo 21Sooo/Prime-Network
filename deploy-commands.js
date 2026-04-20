@@ -1,3 +1,4 @@
+```js
 const { REST, Routes } = require('discord.js');
 
 const TOKEN = process.env.TOKEN;
@@ -8,50 +9,58 @@ const commands = [
   {
     name: 'dispo',
     description: 'Changer sa disponibilité Photographe',
-    options: [{
-      name: 'etat',
-      description: 'ON ou OFF',
-      type: 3,
-      required: true,
-      choices: [
-        { name: 'ON', value: 'on' },
-        { name: 'OFF', value: 'off' }
-      ]
-    }]
+    options: [
+      {
+        name: 'etat',
+        description: 'ON ou OFF',
+        type: 3,
+        required: true,
+        choices: [
+          { name: 'ON', value: 'on' },
+          { name: 'OFF', value: 'off' }
+        ]
+      }
+    ]
   },
   {
     name: 'modeldispo',
     description: 'Changer sa disponibilité Prime Model',
-    options: [{
-      name: 'etat',
-      description: 'ON ou OFF',
-      type: 3,
-      required: true,
-      choices: [
-        { name: 'ON', value: 'on' },
-        { name: 'OFF', value: 'off' }
-      ]
-    }]
+    options: [
+      {
+        name: 'etat',
+        description: 'ON ou OFF',
+        type: 3,
+        required: true,
+        choices: [
+          { name: 'ON', value: 'on' },
+          { name: 'OFF', value: 'off' }
+        ]
+      }
+    ]
   },
   {
     name: 'addmoney',
     description: 'Ajouter de l’argent',
-    options: [{
-      name: 'amount',
-      description: 'Montant',
-      type: 4,
-      required: true
-    }]
+    options: [
+      {
+        name: 'amount',
+        description: 'Montant',
+        type: 4,
+        required: true
+      }
+    ]
   },
   {
     name: 'removemoney',
     description: 'Retirer de l’argent',
-    options: [{
-      name: 'amount',
-      description: 'Montant',
-      type: 4,
-      required: true
-    }]
+    options: [
+      {
+        name: 'amount',
+        description: 'Montant',
+        type: 4,
+        required: true
+      }
+    ]
   },
   {
     name: 'money',
@@ -94,27 +103,65 @@ const commands = [
         ]
       }
     ]
+  },
+  {
+    name: 'devis',
+    description: 'Créer un devis',
+    options: [
+      {
+        name: 'client',
+        type: 3,
+        description: 'Nom du client',
+        required: true
+      },
+      {
+        name: 'telephone',
+        type: 3,
+        description: 'Téléphone',
+        required: true
+      },
+      {
+        name: 'photographe',
+        type: 3,
+        description: 'Photographe',
+        required: true
+      },
+      {
+        name: 'photos',
+        type: 4,
+        description: 'Nombre de photos',
+        required: true
+      },
+      {
+        name: 'description',
+        type: 3,
+        description: 'Description',
+        required: true
+      },
+      {
+        name: 'prix',
+        type: 4,
+        description: 'Prix',
+        required: true
+      }
+    ]
   }
 ];
-{
-  name: 'devis',
-  description: 'Créer un devis',
-  options: [
-    { name: 'client', type: 3, description: 'Nom du client', required: true },
-    { name: 'telephone', type: 3, description: 'Téléphone', required: true },
-    { name: 'photographe', type: 3, description: 'Photographe', required: true },
-    { name: 'photos', type: 4, description: 'Nombre de photos', required: true },
-    { name: 'description', type: 3, description: 'Description', required: true },
-    { name: 'prix', type: 4, description: 'Prix', required: true }
-  ]
-}
+
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
-  console.log("🔄 Installation des commandes...");
-  await rest.put(
-    Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
-    { body: commands }
-  );
-  console.log("✅ Commandes installées");
+  try {
+    console.log("🔄 Installation des commandes...");
+
+    await rest.put(
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+      { body: commands }
+    );
+
+    console.log("✅ Commandes installées avec succès !");
+  } catch (error) {
+    console.error("❌ Erreur lors du déploiement :", error);
+  }
 })();
+```
