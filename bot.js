@@ -25,23 +25,27 @@ const WATERMARK_CHANNEL_ID = "1462586238648324146";
 const PHOTO_ROLE = "🎥・Prime Photographer";
 const MODEL_ROLE = "👠・Prime Model";
 
-// --- ENREGISTREMENT DES POLICES ---
-// Assure-toi que ces fichiers existent dans ton dossier /fonts sur GitHub
-const fontRegular = path.join(__dirname, 'fonts', 'Roboto-Regular.ttf');
-const fontSignature = path.join(__dirname, 'fonts', 'DancingScript.ttf');
+// --- ENREGISTREMENT DES POLICES (À LA RACINE DU PROJET) ---
+const fontRegular = path.join(__dirname, 'Roboto-Regular.ttf');
+const fontSignature = path.join(__dirname, 'DancingScript.ttf');
 
 if (fs.existsSync(fontRegular)) {
   registerFont(fontRegular, { family: 'DevisFont' });
+} else {
+  console.warn("⚠️ Attention: Roboto-Regular.ttf est absent de la racine.");
 }
+
 if (fs.existsSync(fontSignature)) {
   registerFont(fontSignature, { family: 'SignatureFont' });
+} else {
+  console.warn("⚠️ Attention: DancingScript.ttf est absent de la racine.");
 }
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// --- GESTION DES FICHIERS DE DONNÉES ---
+// --- GESTION DES FICHIERS ---
 const panelFile = "./panels.json";
 const statusFile = "./statuses.json";
 
@@ -55,50 +59,50 @@ const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data,
 
 let { photoStatuses, modelStatuses } = getStatuses();
 
-// --- GÉNÉRATEUR DE DEVIS ---
+// --- GÉNÉRATEUR DE DEVIS UTILISANT LE TEMPLATE ---
 async function createComplexDevis(data, signatureName = null) {
   const templatePath = path.join(__dirname, 'devis_template.png');
-  if (!fs.existsSync(templatePath)) throw new Error("Template introuvable !");
+  if (!fs.existsSync(templatePath)) throw new Error("Fichier devis_template.png introuvable !");
   
   const background = await loadImage(templatePath);
   const canvas = createCanvas(background.width, background.height);
   const ctx = canvas.getContext('2d');
 
-  // Dessin du fond
+  // Dessiner l'image de fond (Template)
   ctx.drawImage(background, 0, 0);
 
-  // Style de texte pour le contenu
+  // Configuration du texte standard
   ctx.fillStyle = "#000000";
-  ctx.font = "22px 'DevisFont'";
+  ctx.font = "22px 'DevisFont'"; // Utilisation de la police enregistrée
 
   const dateStr = new Date().toLocaleDateString('fr-FR');
 
-  // Coordonnées (À AJUSTER selon ton image)
-  ctx.fillText(dateStr, 135, 145);                     // Date
-  ctx.fillText(`PRIME-${Math.floor(1000 + Math.random()*9000)}`, 135, 210); // N° Facture
-  ctx.fillText(data.client || "Client Inconnu", 135, 260); // Facturé à
-  ctx.fillText(data.telephone || "Non renseigné", 135, 315); // Adresse/Tel
+  // Remplissage des champs (Coordonnées basées sur devis_template.png)
+  ctx.fillText(dateStr, 135, 145);                     
+  ctx.fillText(`PRIME-${Math.floor(1000 + Math.random()*9000)}`, 135, 210); 
+  ctx.fillText(data.client || "Client", 135, 260); 
+  ctx.fillText(data.telephone || "N/A", 135, 315); 
 
   // Ligne de prestation dans le tableau
   ctx.font = "20px 'DevisFont'";
-  ctx.fillText(dateStr, 140, 410);                    // Date
-  ctx.fillText(data.description || "Prestation Photo", 255, 410); // Prestation
-  ctx.fillText(`${data.prix} €`, 550, 410);           // Prix Unitaire
-  ctx.fillText(data.photos ? data.photos.toString() : "1", 705, 410); // Quantité
-  ctx.fillText(`${data.prix} €`, 785, 410);           // Total ligne
+  ctx.fillText(dateStr, 140, 410);                    
+  ctx.fillText(data.description || "Séance Photo", 255, 410); 
+  ctx.fillText(`${data.prix} €`, 550, 410);           
+  ctx.fillText(data.photos ? data.photos.toString() : "1", 705, 410); 
+  ctx.fillText(`${data.prix} €`, 785, 410);           
 
-  // Total final
+  // Total
   ctx.font = "bold 26px 'DevisFont'";
   ctx.fillText(`${data.prix} €`, 550, 775);
 
   // --- SIGNATURES ---
   if (signatureName) {
-    // Signature du Photographe (Automatique)
+    // Signature automatique du photographe (Côté gauche)
     ctx.font = "25px 'SignatureFont'";
-    ctx.fillStyle = "#1a237e"; // Bleu encre
-    ctx.fillText(data.photographe || "Le Photographe", 120, 890);
+    ctx.fillStyle = "#1a237e"; 
+    ctx.fillText(data.photographe || "Prime Network", 120, 890);
 
-    // Signature du Client (Celle passée au clic sur Accepter)
+    // Signature dynamique du client (Côté droit)
     ctx.font = "35px 'SignatureFont'";
     ctx.fillText(signatureName, 550, 890);
   }
@@ -106,7 +110,7 @@ async function createComplexDevis(data, signatureName = null) {
   return canvas.toBuffer();
 }
 
-// --- LOGIQUE DES DISPONIBILITÉS ---
+// --- LOGIQUE PLANNING ---
 const dispoButtons = new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId("dispo_on").setLabel("🟢 Disponible").setStyle(ButtonStyle.Success),
   new ButtonBuilder().setCustomId("dispo_off").setLabel("🔴 Indisponible").setStyle(ButtonStyle.Danger)
@@ -125,7 +129,7 @@ function generateModelEmbed() {
 function generateDashboardEmbed() {
   const pA = Object.values(photoStatuses).filter(s => s === "🟢").length;
   const mA = Object.values(modelStatuses).filter(s => s === "🟢").length;
-  return new EmbedBuilder().setTitle("📊 Dashboard").setColor("#2f3136").addFields({name:"📸 Photo", value:`${pA}`, inline:true}, {name:"👠 Modèles", value:`${mA}`, inline:true}).setTimestamp();
+  return new EmbedBuilder().setTitle("📊 Dashboard").setColor("#2f3136").addFields({name:"📸 Photographes", value:`${pA}`, inline:true}, {name:"👠 Modèles", value:`${mA}`, inline:true}).setTimestamp();
 }
 
 async function updatePanel(channelId, embed, key) {
@@ -143,7 +147,7 @@ async function updatePanel(channelId, embed, key) {
     } else {
       await msg.edit({ embeds: [embed], components: key !== "dashboardMessageId" ? [dispoButtons] : [] });
     }
-  } catch (err) { console.error(`Erreur panel ${key}:`, err); }
+  } catch (err) { console.error(err); }
 }
 
 async function refreshAll() {
@@ -154,7 +158,7 @@ async function refreshAll() {
 
 // --- ÉVÉNEMENTS ---
 client.once("ready", async () => {
-  console.log(`✅ Bot lancé sur ${client.user.tag}`);
+  console.log(`✅ Bot opérationnel : ${client.user.tag}`);
   await refreshAll();
 });
 
@@ -164,7 +168,7 @@ client.on("interactionCreate", async interaction => {
 
   // 1. COMMANDE /DEVIS
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
-    if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) return interaction.reply({ content: "❌ Réservé aux photographes.", flags: 64 });
+    if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) return interaction.reply({ content: "❌ Accès réservé", flags: 64 });
 
     const data = {
       client: interaction.options.getString('client'),
@@ -178,82 +182,65 @@ client.on("interactionCreate", async interaction => {
     const buffer = await createComplexDevis(data);
     const attachment = new AttachmentBuilder(buffer, { name: 'devis_attente.png' });
 
+    // Stockage limité des données dans l'ID du bouton
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`acc_${data.client}_${data.prix}_${data.photos}`).setLabel('Signer et Accepter').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`sign_${data.client.slice(0,15)}_${data.prix}_${data.photos}`).setLabel('Signer et Accepter').setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`refuse`).setLabel('Refuser').setStyle(ButtonStyle.Danger),
     );
 
-    return interaction.reply({ content: `📄 Devis envoyé pour **${data.client}**`, files: [attachment], components: [row] });
+    return interaction.reply({ content: `📄 Nouveau devis pour **${data.client}**`, files: [attachment], components: [row] });
   }
 
-  // 2. INTERACTIONS BOUTONS
+  // 2. BOUTONS
   if (interaction.isButton()) {
     const args = interaction.customId.split("_");
     const action = args[0];
 
-    if (action === "acc") {
+    if (action === "sign") {
       await interaction.deferUpdate();
-      const clientName = args[1];
-      const prix = args[2];
-      const photos = args[3];
-
       const buffer = await createComplexDevis({
-        client: clientName,
-        prix: prix,
-        photos: photos,
-        description: "Prestation Photo (Validée)",
+        client: args[1],
+        prix: args[2],
+        photos: args[3],
         photographe: "Service Prime"
-      }, username); // 'username' devient la signature ici
+      }, username); // Signature avec le nom du client qui clique
 
       const attachment = new AttachmentBuilder(buffer, { name: 'facture_signee.png' });
-      return interaction.editReply({ content: `✅ Facture signée par **${username}**`, files: [attachment], components: [] });
+      return interaction.editReply({ content: `✅ Devis signé par **${username}**`, files: [attachment], components: [] });
     }
 
     if (action === "refuse") return interaction.update({ content: "❌ Devis refusé.", components: [], files: [] });
 
-    // BOUTONS DISPO
-    if (interaction.customId === "dispo_on" || interaction.customId === "dispo_off") {
+    // STATUTS DISPO
+    if (interaction.customId.startsWith("dispo_")) {
       const isPhoto = interaction.channelId === PHOTO_CHANNEL_ID;
-      const isModel = interaction.channelId === MODEL_CHANNEL_ID;
-
-      if (isPhoto && !member.roles.cache.some(r => r.name === PHOTO_ROLE)) return interaction.reply({ content: "❌ Rôle manquant.", flags: 64 });
-      if (isModel && !member.roles.cache.some(r => r.name === MODEL_ROLE)) return interaction.reply({ content: "❌ Rôle manquant.", flags: 64 });
-
       const target = isPhoto ? photoStatuses : modelStatuses;
       target[username] = interaction.customId === "dispo_on" ? "🟢" : "🔴";
-      
       saveStatuses({ photoStatuses, modelStatuses });
       await refreshAll();
-      return interaction.reply({ content: "Statut mis à jour !", flags: 64 });
+      return interaction.reply({ content: "Statut mis à jour", flags: 64 });
     }
   }
 
-  // 3. COMMANDE /WATERMARK
+  // 3. WATERMARK
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
-    if (interaction.channelId !== WATERMARK_CHANNEL_ID) return interaction.reply({ content: "❌ Mauvais salon.", flags: 64 });
-    
+    if (interaction.channelId !== WATERMARK_CHANNEL_ID) return interaction.reply({ content: "❌ Salon incorrect", flags: 64 });
     await interaction.deferReply();
     const attach = interaction.options.getAttachment("image");
     const pos = interaction.options.getString("position") || "southeast";
     const logoIdx = interaction.options.getString("logo") || "1";
-
-    const watermarkFile = logoIdx === "1" ? "watermark.png" : (logoIdx === "2" ? "watermark2.png" : "watermark3.png");
-    const watermarkPath = path.join(__dirname, watermarkFile);
+    const watermarkPath = path.join(__dirname, logoIdx === "1" ? "watermark.png" : (logoIdx === "2" ? "watermark2.png" : "watermark3.png"));
 
     https.get(attach.url, (res) => {
       const chunks = [];
-      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("data", (c) => chunks.push(c));
       res.on("end", async () => {
-        const inputBuffer = Buffer.concat(chunks);
-        const image = sharp(inputBuffer);
-        const meta = await image.metadata();
-
-        const wMark = await sharp(watermarkPath)
-          .resize({ width: Math.floor(meta.width * 0.15), fit: "inside" })
-          .toBuffer();
-
-        const output = await image.composite([{ input: wMark, gravity: pos }]).toBuffer();
-        await interaction.editReply({ files: [new AttachmentBuilder(output, { name: 'watermarked.png' })] });
+        const input = Buffer.concat(chunks);
+        const img = sharp(input);
+        const meta = await img.metadata();
+        const wMark = await sharp(watermarkPath).resize({ width: Math.floor(meta.width * 0.15) }).toBuffer();
+        const out = await img.composite([{ input: wMark, gravity: pos }]).toBuffer();
+        await interaction.editReply({ files: [new AttachmentBuilder(out, { name: 'resultat.png' })] });
       });
     });
   }
