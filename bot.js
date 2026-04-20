@@ -4,9 +4,11 @@ const {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle
+  ButtonStyle,
+  AttachmentBuilder
 } = require('discord.js');
 
+const { createCanvas } = require('canvas');
 const sharp = require("sharp");
 const fs = require("fs");
 const https = require("https");
@@ -55,6 +57,42 @@ const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data,
 
 // ===== STATES =====
 let { photoStatuses, modelStatuses } = getStatuses();
+
+// ===== SIMPLE DEVIS GENERATOR =====
+function createSimpleDevis(data) {
+  const canvas = createCanvas(700, 500);
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, 700, 500);
+
+  ctx.fillStyle = "#000000";
+  ctx.font = "20px sans-serif";
+
+  let y = 50;
+
+  ctx.fillText("DEVIS", 300, y);
+  y += 50;
+
+  ctx.fillText(`Client : ${data.client}`, 50, y);
+  y += 30;
+
+  ctx.fillText(`Téléphone : ${data.telephone}`, 50, y);
+  y += 30;
+
+  ctx.fillText(`Photographe : ${data.photographe}`, 50, y);
+  y += 30;
+
+  ctx.fillText(`Nombre de photos : ${data.photos}`, 50, y);
+  y += 30;
+
+  ctx.fillText(`Description : ${data.description}`, 50, y);
+  y += 30;
+
+  ctx.fillText(`Prix : ${data.prix} €`, 50, y);
+
+  return canvas.toBuffer();
+}
 
 // ===== BUTTONS =====
 const dispoButtons = new ActionRowBuilder().addComponents(
@@ -162,96 +200,71 @@ client.once("clientReady", async () => {
 
 // ===== INTERACTIONS =====
 client.on("interactionCreate", async interaction => {
-// ===== DEVIS =====
-if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
 
-  if (!interaction.member.roles.cache.some(role => role.name === PHOTO_ROLE)) {
-    return interaction.reply({ content: "❌ Accès refusé", flags: 64 });
+  // ===== DEVIS =====
+  if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
+
+    if (!interaction.member.roles.cache.some(role => role.name === PHOTO_ROLE)) {
+      return interaction.reply({ content: "❌ Accès refusé", flags: 64 });
+    }
+
+    const clientName = interaction.options.getString('client');
+    const telephone = interaction.options.getString('telephone');
+    const photographe = interaction.options.getString('photographe');
+    const photos = interaction.options.getInteger('photos');
+    const description = interaction.options.getString('description');
+    const prix = interaction.options.getInteger('prix');
+
+    const buffer = createSimpleDevis({
+      client: clientName,
+      telephone,
+      photographe,
+      photos,
+      description,
+      prix
+    });
+
+    const attachment = new AttachmentBuilder(buffer, { name: 'devis.png' });
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`accept_${clientName}`)
+        .setLabel('Accepter')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`refuse_${clientName}`)
+        .setLabel('Refuser')
+        .setStyle(ButtonStyle.Danger),
+    );
+
+    return interaction.reply({
+      content: `📄 Devis pour **${clientName}**`,
+      files: [attachment],
+      components: [row]
+    });
   }
 
-  const { createCanvas, loadImage } = require('canvas');
-  const { AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-
-  const clientName = interaction.options.getString('client');
-  const telephone = interaction.options.getString('telephone');
-  const photographe = interaction.options.getString('photographe');
-  const photos = interaction.options.getInteger('photos');
-  const description = interaction.options.getString('description');
-  const prix = interaction.options.getInteger('prix');
-
-  const canvas = createCanvas(800, 1000);
-  const ctx = canvas.getContext('2d');
-
-  const background = await loadImage('./devis_template.png');
-  ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = "#000";
-  ctx.font = "28px Arial";
-
-  ctx.fillText(clientName, 250, 220);
-  ctx.fillText(telephone, 250, 270);
-  ctx.fillText(photographe, 250, 320);
-  ctx.fillText(String(photos), 250, 370);
-  ctx.fillText(description, 250, 420);
-  ctx.fillText(`${prix} €`, 250, 470);
-
-  const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'devis.png' });
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`accept_${clientName}`)
-      .setLabel('Accepter')
-      .setStyle(ButtonStyle.Success),
-
-    new ButtonBuilder()
-      .setCustomId(`refuse_${clientName}`)
-      .setLabel('Refuser')
-      .setStyle(ButtonStyle.Danger),
-  );
-
-  return interaction.reply({
-    content: `📄 Devis pour **${clientName}**`,
-    files: [attachment],
-    components: [row]
-  });
-}
-  // ===== BOUTONS =====
+  // ===== BUTTONS =====
   if (interaction.isButton()) {
     const member = interaction.member;
     const name = member.nickname || interaction.user.username;
-// ===== DEVIS BUTTONS =====
-const [action, clientName] = interaction.customId.split("_");
 
-if (action === "accept") {
+    const [action, clientName] = interaction.customId.split("_");
 
-  const { createCanvas, loadImage } = require('canvas');
-  const { AttachmentBuilder } = require('discord.js');
+    if (action === "accept") {
+      return interaction.update({
+        content: `✅ Devis accepté par ${clientName}`,
+        components: []
+      });
+    }
 
-  const canvas = createCanvas(800, 1000);
-  const ctx = canvas.getContext('2d');
+    if (action === "refuse") {
+      return interaction.update({
+        content: `❌ Devis refusé par ${clientName}`,
+        components: []
+      });
+    }
 
-  const background = await loadImage('./devis_template.png');
-  ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = "#000";
-  ctx.font = "28px Arial";
-
-  ctx.fillText(`SIGNÉ : ${clientName} ✍️`, 200, 800);
-
-  return interaction.update({
-    content: `✅ Devis accepté par ${clientName}`,
-    files: [new AttachmentBuilder(canvas.toBuffer(), { name: 'devis_signe.png' })],
-    components: []
-  });
-}
-
-if (action === "refuse") {
-  return interaction.update({
-    content: `❌ Devis refusé par ${clientName}`,
-    components: []
-  });
-}
-    
     // PHOTO
     if (interaction.channelId === PHOTO_CHANNEL_ID) {
       if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) {
@@ -276,7 +289,7 @@ if (action === "refuse") {
     return interaction.reply({ content: "✅ Statut mis à jour", flags: 64 });
   }
 
-  // ===== WATERMARK (inchangé) =====
+  // ===== WATERMARK =====
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
 
     if (interaction.channelId !== WATERMARK_CHANNEL_ID) {
