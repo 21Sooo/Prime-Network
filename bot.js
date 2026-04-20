@@ -25,7 +25,7 @@ const WATERMARK_CHANNEL_ID = "1462586238648324146";
 const PHOTO_ROLE = "🎥・Prime Photographer";
 const MODEL_ROLE = "👠・Prime Model";
 
-// --- MÉMOIRE TEMPORAIRE (CORRECTION BUG DESCRIPTION) ---
+// --- MÉMOIRE TEMPORAIRE ---
 const devisCache = new Map();
 
 // --- ENREGISTREMENT DES POLICES ---
@@ -53,7 +53,7 @@ const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data,
 
 let { photoStatuses, modelStatuses } = getStatuses();
 
-// --- GÉNÉRATEUR SUR PAGE BLANCHE (PLUS DE DÉCALAGE) ---
+// --- GÉNÉRATEUR SUR PAGE BLANCHE (VERSION LISIBILITÉ AMÉLIORÉE) ---
 async function createPrimeDevis(data, signatureName = null) {
   const canvas = createCanvas(800, 1000);
   const ctx = canvas.getContext('2d');
@@ -64,61 +64,61 @@ async function createPrimeDevis(data, signatureName = null) {
 
   // En-tête (Rectangle Noir)
   ctx.fillStyle = "#000000";
-  ctx.fillRect(0, 0, 800, 150);
+  ctx.fillRect(0, 0, 800, 160);
   
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 40px sans-serif";
-  ctx.fillText("PRIME NETWORK", 50, 70);
-  ctx.font = "20px sans-serif";
-  ctx.fillText("DEVIS & FACTURATION OFFICIELLE", 50, 110);
+  ctx.font = "bold 50px sans-serif"; 
+  ctx.fillText("PRIME NETWORK", 50, 75);
+  ctx.font = "24px sans-serif";
+  ctx.fillText("DEVIS & FACTURATION OFFICIELLE", 50, 120);
 
   // Contenu (Noir)
   ctx.fillStyle = "#000000";
-  ctx.font = "bold 22px sans-serif";
-  ctx.fillText(`CLIENT : ${data.client || "Inconnu"}`, 50, 220);
+  ctx.font = "bold 28px sans-serif";
+  ctx.fillText(`CLIENT : ${data.client || "Inconnu"}`, 50, 230);
   
-  ctx.font = "18px sans-serif";
-  ctx.fillText(`Téléphone : ${data.telephone || "Non renseigné"}`, 50, 260);
-  ctx.fillText(`Prestation : ${data.photos || 0} photo(s)`, 50, 290);
+  ctx.font = "22px sans-serif";
+  ctx.fillText(`Téléphone : ${data.telephone || "Non renseigné"}`, 50, 280);
+  ctx.fillText(`Prestation : ${data.photos || 0} photo(s)`, 50, 320);
 
   // Ligne de séparation
   ctx.strokeStyle = "#000000";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(50, 330);
-  ctx.lineTo(750, 330);
+  ctx.moveTo(50, 360);
+  ctx.lineTo(750, 360);
   ctx.stroke();
 
   // Zone Description
-  ctx.font = "bold 18px sans-serif";
-  ctx.fillText("DESCRIPTION DÉTAILLÉE :", 50, 370);
+  ctx.font = "bold 24px sans-serif";
+  ctx.fillText("DESCRIPTION DÉTAILLÉE :", 50, 410);
   
-  ctx.font = "16px sans-serif";
+  ctx.font = "20px sans-serif";
   const words = (data.description || "").split(' ');
   let line = '';
-  let yDesc = 405;
+  let yDesc = 450;
   for(let n = 0; n < words.length; n++) {
     let testLine = line + words[n] + ' ';
     if (ctx.measureText(testLine).width > 680 && n > 0) {
       ctx.fillText(line, 50, yDesc);
       line = words[n] + ' ';
-      yDesc += 25;
+      yDesc += 35; 
     } else { line = testLine; }
   }
   ctx.fillText(line, 50, yDesc);
 
   // Prix
-  ctx.font = "bold 30px sans-serif";
+  ctx.font = "bold 35px sans-serif";
   ctx.fillText(`TOTAL À RÉGLER : ${data.prix || 0} €`, 50, 850);
 
   // Signature
   if (signatureName) {
-    ctx.font = "45px 'SignatureFont', cursive";
+    ctx.font = "55px 'SignatureFont', cursive";
     ctx.fillStyle = "#1a237e"; 
     ctx.fillText(signatureName, 450, 920);
     
     ctx.fillStyle = "#000000";
-    ctx.font = "italic 14px sans-serif";
+    ctx.font = "italic 16px sans-serif";
     ctx.fillText("Signé numériquement le " + new Date().toLocaleDateString(), 450, 950);
   }
 
@@ -173,7 +173,7 @@ async function refreshAll() {
 
 // --- INTERACTIONS ---
 client.once("ready", async () => {
-  console.log(`✅ Bot Prime Network en ligne (Mode Page Blanche + Cache activé)`);
+  console.log(`✅ Bot Prime Network en ligne (Mode Lisibilité HD)`);
   await refreshAll();
 });
 
@@ -194,7 +194,6 @@ client.on("interactionCreate", async interaction => {
       photographe: username
     };
 
-    // SAUVEGARDE DANS LE CACHE POUR ÉVITER LA PERTE DE DESCRIPTION
     const devisId = `devis_${Date.now()}`;
     devisCache.set(devisId, data);
 
@@ -212,12 +211,11 @@ client.on("interactionCreate", async interaction => {
   }
 
   if (interaction.isButton()) {
-    // GESTION DU BOUTON SIGNER (RÉCUPÉRATION DU CACHE)
     if (interaction.customId.startsWith("sign_devis_")) {
       const devisId = interaction.customId.replace("sign_", "");
       const cachedData = devisCache.get(devisId);
 
-      if (!cachedData) return interaction.reply({ content: "❌ Erreur : Ce devis a expiré en mémoire. Merci de le relancer.", flags: 64 });
+      if (!cachedData) return interaction.reply({ content: "❌ Erreur : Ce devis a expiré en mémoire.", flags: 64 });
 
       const buffer = await createPrimeDevis(cachedData, username);
       await interaction.update({ 
@@ -226,7 +224,7 @@ client.on("interactionCreate", async interaction => {
         components: [] 
       });
       
-      return devisCache.delete(devisId); // Nettoyage
+      return devisCache.delete(devisId);
     }
     
     if (interaction.customId === "refuse") return interaction.update({ content: "❌ Le client a refusé le devis.", components: [], files: [] });
