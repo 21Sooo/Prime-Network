@@ -8,12 +8,12 @@ const {
   AttachmentBuilder
 } = require('discord.js');
 
-const { createCanvas, registerFont } = require('canvas');
+const { createCanvas, registerFont, loadImage } = require('canvas');
 const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
 
-const fetch = global.fetch; // ✅ FIX IMPORTANT
+const fetch = global.fetch;
 
 const TOKEN = process.env.TOKEN;
 const GUILD_ID = "1403500050067230730";
@@ -191,107 +191,56 @@ client.on("interactionCreate", async interaction => {
 
   const userId = interaction.user.id;
 
-  // ===== WATERMARK FIX FINAL PROPRE =====
-if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
+  // ===== WATERMARK =====
+  if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
 
-  if (interaction.channelId !== WATERMARK_CHANNEL_ID)
-    return interaction.reply({ content: "❌ Mauvais salon", flags: 64 });
+    if (interaction.channelId !== WATERMARK_CHANNEL_ID)
+      return interaction.reply({ content: "❌ Mauvais salon", flags: 64 });
 
-  await interaction.deferReply();
+    await interaction.deferReply();
 
-  const attach = interaction.options.getAttachment("image");
-  const pos = interaction.options.getString("position");
-  const logo = interaction.options.getString("logo") || "1";
+    const attach = interaction.options.getAttachment("image");
+    const pos = interaction.options.getString("position");
+    const logo = interaction.options.getString("logo") || "1";
 
-  try {
-    const buffer = Buffer.from(await (await fetch(attach.url)).arrayBuffer());
+    try {
+      const buffer = Buffer.from(await (await fetch(attach.url)).arrayBuffer());
+      const img = sharp(buffer);
+      const meta = await img.metadata();
 
-    const img = sharp(buffer);
-    const meta = await img.metadata();
+      const logoWidth = Math.floor(meta.width * 0.035);
 
-    // 🔥 taille plus propre
-    const logoWidth = Math.floor(meta.width * 0.035);
+      const wMarkBuffer = await sharp(path.join(__dirname,
+        logo === "2" ? "watermark2.png" :
+        logo === "3" ? "watermark3.png" :
+        "watermark.png"
+      ))
+        .resize({ width: logoWidth })
+        .png()
+        .toBuffer();
 
-    const wMarkBuffer = await sharp(path.join(__dirname,
-      logo === "2" ? "watermark2.png" :
-      logo === "3" ? "watermark3.png" :
-      "watermark.png"
-    ))
-      .resize({ width: logoWidth })
-      .png()
-      .toBuffer();
+      const wMeta = await sharp(wMarkBuffer).metadata();
+      const margin = Math.floor(meta.width * 0.015);
 
-    const wMeta = await sharp(wMarkBuffer).metadata();
+      let top = meta.height - wMeta.height - margin;
+      let left = meta.width - wMeta.width - margin;
 
-    // 🔥 marge adaptative
-    const margin = Math.floor(meta.width * 0.015);
+      const out = await img.composite([{
+        input: wMarkBuffer,
+        top,
+        left
+      }]).toBuffer();
 
-    let top = 0;
-    let left = 0;
+      await interaction.editReply({
+        files: [new AttachmentBuilder(out, { name: "prime.png" })]
+      });
 
-    const position = (pos || "southeast").toLowerCase();
-
-    switch (position) {
-
-      case "northwest":
-        top = margin;
-        left = margin;
-        break;
-
-      case "northeast":
-        top = margin;
-        left = meta.width - wMeta.width - margin;
-        break;
-
-      case "southwest":
-        top = meta.height - wMeta.height - margin;
-        left = margin;
-        break;
-
-      case "southeast":
-        top = meta.height - wMeta.height - margin;
-        left = meta.width - wMeta.width - margin;
-        break;
-
-      case "center":
-      case "centre":
-        top = Math.floor((meta.height - wMeta.height) / 2);
-        left = Math.floor((meta.width - wMeta.width) / 2);
-        break;
-
-      case "north":
-        top = margin;
-        left = Math.floor((meta.width - wMeta.width) / 2);
-        break;
-
-      case "south":
-        top = meta.height - wMeta.height - margin;
-        left = Math.floor((meta.width - wMeta.width) / 2);
-        break;
-
-      default:
-        top = meta.height - wMeta.height - margin;
-        left = meta.width - wMeta.width - margin;
+    } catch {
+      await interaction.editReply("❌ Erreur watermark");
     }
-
-    const out = await img.composite([{
-      input: wMarkBuffer,
-      top,
-      left,
-      blend: "over"
-    }]).toBuffer();
-
-    await interaction.editReply({
-      files: [new AttachmentBuilder(out, { name: "prime.png" })]
-    });
-
-  } catch (e) {
-    console.error(e);
-    await interaction.editReply("❌ Erreur watermark");
   }
-}
 
-  // ===== DEVIS (TON DESIGN CONSERVÉ) =====
+  // ===== DEVIS DESIGN =====
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
 
     await interaction.deferReply();
@@ -310,36 +259,82 @@ if (interaction.isChatInputCommand() && interaction.commandName === "watermark")
     const canvas = createCanvas(800, 1000);
     const ctx = canvas.getContext('2d');
 
+    // BACKGROUND
     ctx.fillStyle = "#f5f5f5";
     ctx.fillRect(0, 0, 800, 1000);
 
+    // HEADER
     ctx.fillStyle = "#111";
-    ctx.font = "bold 40px Roboto";
-    ctx.fillText("DEVIS", 320, 80);
+    ctx.fillRect(0, 0, 800, 120);
 
-    ctx.font = "24px Roboto";
-    ctx.fillText(`Client : ${data.client}`, 50, 150);
-    ctx.fillText(`Téléphone : ${data.telephone}`, 50, 190);
-    ctx.fillText(`Photos : ${data.photos}`, 50, 230);
+    try {
+      const logo = await loadImage(path.join(__dirname, "PN_Logo2.png"));
+      ctx.drawImage(logo, 40, 20, 80, 80);
+    } catch {}
 
-    ctx.fillText("Description :", 50, 300);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 42px Roboto";
+    ctx.fillText("DEVIS", 140, 65);
 
-    const words = data.description.split(" ");
+    ctx.font = "20px Roboto";
+    ctx.fillText("Prime Network", 140, 95);
+
+    // CLIENT BOX
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(40, 140, 720, 140);
+    ctx.strokeStyle = "#ddd";
+    ctx.strokeRect(40, 140, 720, 140);
+
+    ctx.fillStyle = "#111";
+    ctx.font = "bold 22px Roboto";
+    ctx.fillText("CLIENT", 60, 170);
+
+    ctx.font = "20px Roboto";
+    ctx.fillText(`Nom : ${data.client}`, 60, 210);
+    ctx.fillText(`Téléphone : ${data.telephone}`, 60, 240);
+    ctx.fillText(`Photos : ${data.photos}`, 60, 270);
+
+    // DESCRIPTION
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(40, 320, 720, 350);
+    ctx.strokeRect(40, 320, 720, 350);
+
+    ctx.fillStyle = "#111";
+    ctx.font = "bold 22px Roboto";
+    ctx.fillText("DESCRIPTION", 60, 350);
+
+    let y = 390;
     let line = "";
-    let y = 340;
+    ctx.font = "20px Roboto";
 
-    for (let word of words) {
+    for (let word of data.description.split(" ")) {
       const testLine = line + word + " ";
-      if (ctx.measureText(testLine).width > 700) {
-        ctx.fillText(line, 50, y);
+      if (ctx.measureText(testLine).width > 680) {
+        ctx.fillText(line, 60, y);
         line = word + " ";
-        y += 30;
+        y += 28;
       } else line = testLine;
     }
-    ctx.fillText(line, 50, y);
+    ctx.fillText(line, 60, y);
 
-    ctx.font = "bold 30px Roboto";
-    ctx.fillText(`TOTAL : $${data.prix}`, 50, 800);
+    // TOTAL
+    ctx.fillStyle = "#111";
+    ctx.fillRect(40, 720, 720, 100);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 32px Roboto";
+    ctx.fillText(`TOTAL : $${data.prix}`, 60, 780);
+
+    // SIGNATURE
+    ctx.fillStyle = "#111";
+    ctx.font = "20px Roboto";
+    ctx.fillText("Signature :", 60, 900);
+
+    ctx.font = "28px Dancing";
+    ctx.fillText(interaction.member.nickname || interaction.user.username, 200, 900);
+
+    ctx.font = "16px Roboto";
+    ctx.fillText(`Le ${new Date().toLocaleDateString()}`, 200, 930);
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`sign_${id}`).setLabel("Signer").setStyle(ButtonStyle.Success),
@@ -352,9 +347,8 @@ if (interaction.isChatInputCommand() && interaction.commandName === "watermark")
     });
   }
 
-  // ===== SIGNATURE =====
+  // SIGNATURE
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
-
     const id = interaction.customId.split("_")[1];
     const data = devisCache.get(id);
 
@@ -366,43 +360,10 @@ if (interaction.isChatInputCommand() && interaction.commandName === "watermark")
 
     ctx.fillStyle = "#111";
     ctx.font = "bold 40px Roboto";
-    ctx.fillText("DEVIS", 320, 80);
-
-    ctx.font = "24px Roboto";
-    ctx.fillText(`Client : ${data.client}`, 50, 150);
-    ctx.fillText(`Téléphone : ${data.telephone}`, 50, 190);
-    ctx.fillText(`Photos : ${data.photos}`, 50, 230);
-
-    ctx.fillText("Description :", 50, 300);
-
-    let y = 340;
-    let line = "";
-    for (let word of data.description.split(" ")) {
-      const testLine = line + word + " ";
-      if (ctx.measureText(testLine).width > 700) {
-        ctx.fillText(line, 50, y);
-        line = word + " ";
-        y += 30;
-      } else line = testLine;
-    }
-    ctx.fillText(line, 50, y);
-
-    ctx.font = "bold 30px Roboto";
-    ctx.fillText(`TOTAL : $${data.prix}`, 50, 800);
+    ctx.fillText("DEVIS SIGNÉ", 250, 80);
 
     ctx.font = "28px Dancing";
-    ctx.fillText(
-      interaction.member.nickname || interaction.user.username,
-      500,
-      900
-    );
-
-    ctx.font = "18px Roboto";
-    ctx.fillText(
-      `Signé le ${new Date().toLocaleDateString()}`,
-      500,
-      930
-    );
+    ctx.fillText(interaction.user.username, 300, 500);
 
     devisCache.delete(id);
 
@@ -416,7 +377,7 @@ if (interaction.isChatInputCommand() && interaction.commandName === "watermark")
     await interaction.message.delete().catch(() => {});
   }
 
-  // ===== DISPO =====
+  // DISPO
   if (interaction.isButton()) {
 
     await interaction.deferReply({ flags: 64 });
@@ -425,16 +386,14 @@ if (interaction.isChatInputCommand() && interaction.commandName === "watermark")
     const status = interaction.customId === "dispo_on" ? "🟢" : "🔴";
 
     if (interaction.channelId === PHOTO_CHANNEL_ID) {
-      if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) {
+      if (!member.roles.cache.some(r => r.name === PHOTO_ROLE))
         return interaction.editReply("❌ Tu n'es pas photographe.");
-      }
       photoStatuses[userId] = status;
     }
 
     else if (interaction.channelId === MODEL_CHANNEL_ID) {
-      if (!member.roles.cache.some(r => r.name === MODEL_ROLE)) {
+      if (!member.roles.cache.some(r => r.name === MODEL_ROLE))
         return interaction.editReply("❌ Tu n'es pas modèle.");
-      }
       modelStatuses[userId] = status;
     }
 
