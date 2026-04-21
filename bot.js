@@ -15,7 +15,7 @@ const path = require("path");
 
 const TOKEN = process.env.TOKEN;
 
-// --- CONFIGURATION ---
+// --- CONFIG ---
 const PHOTO_CHANNEL_ID = "1403500792106717235";
 const MODEL_CHANNEL_ID = "1477705326525681806";
 const DASHBOARD_CHANNEL_ID = "1490305746598887435";
@@ -37,12 +37,15 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// --- FICHIERS ---
+// --- FILES ---
 const panelFile = "./panels.json";
 const statusFile = "./statuses.json";
 
-if (!fs.existsSync(panelFile)) fs.writeFileSync(panelFile, JSON.stringify({ photoMessageId: null, modelMessageId: null, dashboardMessageId: null }, null, 2));
-if (!fs.existsSync(statusFile)) fs.writeFileSync(statusFile, JSON.stringify({ photoStatuses: {}, modelStatuses: {} }, null, 2));
+if (!fs.existsSync(panelFile))
+  fs.writeFileSync(panelFile, JSON.stringify({ photoMessageId: null, modelMessageId: null, dashboardMessageId: null }, null, 2));
+
+if (!fs.existsSync(statusFile))
+  fs.writeFileSync(statusFile, JSON.stringify({ photoStatuses: {}, modelStatuses: {} }, null, 2));
 
 const getPanels = () => JSON.parse(fs.readFileSync(panelFile));
 const savePanels = (data) => fs.writeFileSync(panelFile, JSON.stringify(data, null, 2));
@@ -56,63 +59,41 @@ async function createPrimeDevis(data, signatureName = null) {
   const canvas = createCanvas(800, 1000);
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, 800, 1000);
 
-  ctx.fillStyle = "#000000";
+  ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, 800, 160);
 
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = "#fff";
   ctx.font = "bold 50px sans-serif";
   ctx.fillText("PRIME NETWORK", 50, 75);
+
   ctx.font = "24px sans-serif";
   ctx.fillText("DEVIS & FACTURATION OFFICIELLE", 50, 120);
 
-  ctx.fillStyle = "#000000";
+  ctx.fillStyle = "#000";
   ctx.font = "bold 28px sans-serif";
-  ctx.fillText(`CLIENT : ${data.client || "Inconnu"}`, 50, 230);
+  ctx.fillText(`CLIENT : ${data.client}`, 50, 230);
 
   ctx.font = "22px sans-serif";
-  ctx.fillText(`Téléphone : ${data.telephone || "Non renseigné"}`, 50, 280);
-  ctx.fillText(`Prestation : ${data.photos || 0} photo(s)`, 50, 320);
+  ctx.fillText(`Téléphone : ${data.telephone}`, 50, 280);
+  ctx.fillText(`Prestation : ${data.photos} photo(s)`, 50, 320);
 
-  ctx.strokeStyle = "#000000";
-  ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(50, 360);
   ctx.lineTo(750, 360);
   ctx.stroke();
 
-  ctx.font = "bold 24px sans-serif";
-  ctx.fillText("DESCRIPTION DÉTAILLÉE :", 50, 410);
-
   ctx.font = "20px sans-serif";
-  const words = (data.description || "").split(' ');
-  let line = '';
-  let yDesc = 450;
-  for (let n = 0; n < words.length; n++) {
-    let testLine = line + words[n] + ' ';
-    if (ctx.measureText(testLine).width > 680 && n > 0) {
-      ctx.fillText(line, 50, yDesc);
-      line = words[n] + ' ';
-      yDesc += 35;
-    } else {
-      line = testLine;
-    }
-  }
-  ctx.fillText(line, 50, yDesc);
+  ctx.fillText(data.description, 50, 420);
 
   ctx.font = "bold 35px sans-serif";
-  ctx.fillText(`TOTAL À RÉGLER : $${data.prix || 0}`, 50, 850);
+  ctx.fillText(`TOTAL : $${data.prix}`, 50, 850);
 
   if (signatureName) {
-    ctx.font = "55px 'SignatureFont', cursive";
-    ctx.fillStyle = "#1a237e";
+    ctx.font = "50px 'SignatureFont'";
     ctx.fillText(signatureName, 450, 920);
-
-    ctx.fillStyle = "#000000";
-    ctx.font = "italic 16px sans-serif";
-    ctx.fillText("Signé le " + new Date().toLocaleDateString(), 450, 950);
   }
 
   return canvas.toBuffer();
@@ -124,170 +105,74 @@ const dispoButtons = new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId("dispo_off").setLabel("🔴 Indisponible").setStyle(ButtonStyle.Danger)
 );
 
-function generatePhotoEmbed() {
-  const desc = Object.entries(photoStatuses).map(([u, e]) => `• **${u}** → ${e}`).join("\n") || "_Aucun photographe_";
-  return new EmbedBuilder().setTitle("📸 Planning Photographes").setColor("#00bfff").setDescription(desc).setTimestamp();
-}
+function generateEmbed(title, data, color) {
+  const desc = Object.entries(data)
+    .map(([u, s]) => `• **${u}** → ${s}`)
+    .join("\n") || "_Aucun_";
 
-function generateModelEmbed() {
-  const desc = Object.entries(modelStatuses).map(([u, e]) => `• **${u}** → ${e}`).join("\n") || "_Aucun modèle_";
-  return new EmbedBuilder().setTitle("👠 Planning Modèles").setColor("#ff69b4").setDescription(desc).setTimestamp();
-}
-
-function generateDashboardEmbed() {
-  const pA = Object.values(photoStatuses).filter(s => s === "🟢").length;
-  const mA = Object.values(modelStatuses).filter(s => s === "🟢").length;
-  return new EmbedBuilder().setTitle("📊 Dashboard Global").setColor("#2f3136")
-    .addFields(
-      { name:"📸 Photos", value:`${pA}`, inline:true },
-      { name:"👠 Modèles", value:`${mA}`, inline:true }
-    )
+  return new EmbedBuilder()
+    .setTitle(title)
+    .setColor(color)
+    .setDescription(desc)
     .setTimestamp();
 }
 
 async function updatePanel(channelId, embed, key) {
-  try {
-    const channel = await client.channels.fetch(channelId);
-    const panels = getPanels();
-    let msg;
-    if (panels[key]) {
-      try { msg = await channel.messages.fetch(panels[key]); } catch { msg = null; }
-    }
-    if (!msg) {
-      msg = await channel.send({ embeds: [embed], components: key !== "dashboardMessageId" ? [dispoButtons] : [] });
-      panels[key] = msg.id;
-      savePanels(panels);
-    } else {
-      await msg.edit({ embeds: [embed], components: key !== "dashboardMessageId" ? [dispoButtons] : [] });
-    }
-  } catch (err) { console.error(err); }
+  const channel = await client.channels.fetch(channelId);
+  const panels = getPanels();
+
+  let msg;
+  if (panels[key]) {
+    try { msg = await channel.messages.fetch(panels[key]); } catch {}
+  }
+
+  if (!msg) {
+    msg = await channel.send({ embeds: [embed], components: [dispoButtons] });
+    panels[key] = msg.id;
+    savePanels(panels);
+  } else {
+    await msg.edit({ embeds: [embed], components: [dispoButtons] });
+  }
 }
 
 async function refreshAll() {
-  await updatePanel(PHOTO_CHANNEL_ID, generatePhotoEmbed(), "photoMessageId");
-  await updatePanel(MODEL_CHANNEL_ID, generateModelEmbed(), "modelMessageId");
-  await updatePanel(DASHBOARD_CHANNEL_ID, generateDashboardEmbed(), "dashboardMessageId");
+  await updatePanel(PHOTO_CHANNEL_ID, generateEmbed("📸 Photographes", photoStatuses, "#00bfff"), "photoMessageId");
+  await updatePanel(MODEL_CHANNEL_ID, generateEmbed("👠 Modèles", modelStatuses, "#ff69b4"), "modelMessageId");
 }
 
 // --- READY ---
 client.once("ready", async () => {
-  console.log(`✅ Bot Prime Network en ligne`);
+  console.log("✅ Bot en ligne");
   await refreshAll();
 });
 
 // --- INTERACTIONS ---
 client.on("interactionCreate", async interaction => {
 
-  const member = interaction.member;
-  const username = member.nickname || interaction.user.username;
+  const username = interaction.user.username;
 
-  // --- DEVIS ---
-  if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
-
-    if (!member.roles.cache.some(r => r.name === PHOTO_ROLE))
-      return interaction.reply({ content: "❌ Réservé aux Photographes.", flags: 64 });
-
-    await interaction.deferReply();
-
-    const data = {
-      client: interaction.options.getString('client'),
-      telephone: interaction.options.getString('telephone'),
-      photos: interaction.options.getInteger('photos'),
-      description: interaction.options.getString('description'),
-      prix: interaction.options.getInteger('prix'),
-      photographe: username
-    };
-
-    const devisId = `devis_${Date.now()}`;
-    devisCache.set(devisId, data);
-
-    const buffer = await createPrimeDevis(data);
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`sign_devis_${devisId}`).setLabel('Signer').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId('refuse').setLabel('Refuser').setStyle(ButtonStyle.Danger)
-    );
-
-    return interaction.editReply({
-      content: `📄 Nouveau devis pour **${data.client}**`,
-      files: [new AttachmentBuilder(buffer, { name: 'devis.png' })],
-      components: [row]
-    });
-  }
-
-  // --- BOUTONS ---
-  if (interaction.isButton()) {
-
-    if (interaction.customId.startsWith("sign_devis_")) {
-      const devisId = interaction.customId.replace("sign_devis_", "");
-      const cachedData = devisCache.get(devisId);
-
-      if (!cachedData)
-        return interaction.reply({ content: "❌ Devis expiré.", flags: 64 });
-
-      const buffer = await createPrimeDevis(cachedData, username);
-
-      await interaction.update({
-        content: `✅ Devis signé par **${username}**`,
-        files: [new AttachmentBuilder(buffer, { name: 'facture_signee.png' })],
-        components: []
-      });
-
-      return devisCache.delete(devisId);
-    }
-
-    if (interaction.customId === "refuse")
-      return interaction.update({ content: "❌ Devis refusé.", components: [], files: [] });
-
-    if (interaction.customId.startsWith("dispo_")) {
-      const target = interaction.channelId === PHOTO_CHANNEL_ID ? photoStatuses : modelStatuses;
-      target[username] = interaction.customId === "dispo_on" ? "🟢" : "🔴";
-      saveStatuses({ photoStatuses, modelStatuses });
-      await refreshAll();
-      return interaction.reply({ content: "Disponibilité mise à jour !", flags: 64 });
-    }
-  }
-
-  // --- WATERMARK FINAL ---
+  // --- WATERMARK ---
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
-
-    if (interaction.channelId !== WATERMARK_CHANNEL_ID)
-      return interaction.reply({ content: "❌ Mauvais salon.", flags: 64 });
 
     await interaction.deferReply();
 
     const attach = interaction.options.getAttachment("image");
+    const pos = interaction.options.getString("position") || "southeast";
+    const logo = interaction.options.getString("logo") || "1";
 
-    const logoChoice = interaction.options.getString("logo") || "1";
     const watermarkFile =
-      logoChoice === "2" ? "watermark2.png" :
-      logoChoice === "3" ? "watermark3.png" :
+      logo === "2" ? "watermark2.png" :
+      logo === "3" ? "watermark3.png" :
       "watermark.png";
 
-    // 🔥 FIX MAJUSCULES
-    const positionMap = {
-      "centre": "center",
-      "bas droite": "southeast",
-      "bas gauche": "southwest",
-      "haut droite": "northeast",
-      "haut gauche": "northwest",
-      "milieu haut": "north",
-      "milieu bas": "south"
-    };
-
-    const posInput = interaction.options.getString("position");
-    const pos = positionMap[posInput?.toLowerCase()] || "southeast";
-
     try {
-      const response = await fetch(attach.url);
-      const buffer = Buffer.from(await response.arrayBuffer());
+      const res = await fetch(attach.url);
+      const buffer = Buffer.from(await res.arrayBuffer());
 
       const img = sharp(buffer);
       const meta = await img.metadata();
 
-      const watermarkPath = path.join(__dirname, watermarkFile);
-
-      const wMark = await sharp(watermarkPath)
+      const wMark = await sharp(path.join(__dirname, watermarkFile))
         .resize({ width: Math.floor(meta.width * 0.06) })
         .png()
         .toBuffer();
@@ -295,17 +180,74 @@ client.on("interactionCreate", async interaction => {
       const out = await img.composite([{
         input: wMark,
         gravity: pos,
-        blend: 'over',
         opacity: 0.8
       }]).toBuffer();
 
       await interaction.editReply({
-        files: [new AttachmentBuilder(out, { name: 'prime_photo.png' })]
+        files: [new AttachmentBuilder(out, { name: "watermark.png" })]
       });
 
-    } catch (e) {
-      console.error(e);
-      await interaction.editReply("❌ Erreur traitement image.");
+    } catch (err) {
+      console.error(err);
+      await interaction.editReply("❌ Erreur.");
+    }
+  }
+
+  // --- DEVIS ---
+  if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
+
+    await interaction.deferReply();
+
+    const data = {
+      client: interaction.options.getString("client"),
+      telephone: interaction.options.getString("telephone"),
+      photos: interaction.options.getInteger("photos"),
+      description: interaction.options.getString("description"),
+      prix: interaction.options.getInteger("prix")
+    };
+
+    const id = Date.now().toString();
+    devisCache.set(id, data);
+
+    const buffer = await createPrimeDevis(data);
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`sign_${id}`).setLabel("Signer").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId("refuse").setLabel("Refuser").setStyle(ButtonStyle.Danger)
+    );
+
+    await interaction.editReply({
+      files: [new AttachmentBuilder(buffer, { name: "devis.png" })],
+      components: [row]
+    });
+  }
+
+  // --- BOUTONS ---
+  if (interaction.isButton()) {
+
+    if (interaction.customId.startsWith("sign_")) {
+      const id = interaction.customId.split("_")[1];
+      const data = devisCache.get(id);
+
+      const buffer = await createPrimeDevis(data, interaction.user.username);
+
+      await interaction.update({
+        content: "✅ Signé",
+        files: [new AttachmentBuilder(buffer, { name: "facture.png" })],
+        components: []
+      });
+    }
+
+    if (interaction.customId === "refuse") {
+      return interaction.update({ content: "❌ Refusé", components: [] });
+    }
+
+    if (interaction.customId === "dispo_on" || interaction.customId === "dispo_off") {
+      const status = interaction.customId === "dispo_on" ? "🟢" : "🔴";
+      photoStatuses[username] = status;
+      saveStatuses({ photoStatuses, modelStatuses });
+      await refreshAll();
+      return interaction.reply({ content: "✅ MAJ", flags: 64 });
     }
   }
 });
