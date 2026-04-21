@@ -14,6 +14,7 @@ const fs = require("fs");
 const path = require("path");
 
 const TOKEN = process.env.TOKEN;
+const GUILD_ID = "1403500050067230730";
 
 // --- CONFIG ---
 const PHOTO_CHANNEL_ID = "1403500792106717235";
@@ -26,96 +27,102 @@ const MODEL_ROLE = "👠・Prime Model";
 
 const devisCache = new Map();
 
-// --- FONTS ---
-const fontPath = path.join(__dirname, 'Roboto-Regular.ttf');
-const sigPath = path.join(__dirname, 'DancingScript.ttf');
-
-if (fs.existsSync(fontPath)) registerFont(fontPath, { family: 'PrimeFont' });
-if (fs.existsSync(sigPath)) registerFont(sigPath, { family: 'SignatureFont' });
-
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
-});
-
 // --- FILES ---
 const panelFile = "./panels.json";
 const statusFile = "./statuses.json";
 
-if (!fs.existsSync(panelFile))
-  fs.writeFileSync(panelFile, JSON.stringify({ photoMessageId: null, modelMessageId: null, dashboardMessageId: null }, null, 2));
+if (!fs.existsSync(panelFile)) {
+  fs.writeFileSync(panelFile, JSON.stringify({
+    photoMessageId: null,
+    modelMessageId: null,
+    dashboardMessageId: null
+  }, null, 2));
+}
 
-if (!fs.existsSync(statusFile))
-  fs.writeFileSync(statusFile, JSON.stringify({ photoStatuses: {}, modelStatuses: {} }, null, 2));
+if (!fs.existsSync(statusFile)) {
+  fs.writeFileSync(statusFile, JSON.stringify({
+    photoStatuses: {},
+    modelStatuses: {}
+  }, null, 2));
+}
 
 const getPanels = () => JSON.parse(fs.readFileSync(panelFile));
 const savePanels = (data) => fs.writeFileSync(panelFile, JSON.stringify(data, null, 2));
+
 const getStatuses = () => JSON.parse(fs.readFileSync(statusFile));
 const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data, null, 2));
 
 let { photoStatuses, modelStatuses } = getStatuses();
 
-// --- DEVIS ---
-async function createPrimeDevis(data, signatureName = null) {
-  const canvas = createCanvas(800, 1000);
-  const ctx = canvas.getContext('2d');
+// --- CLIENT ---
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
+});
 
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, 800, 1000);
+// --- EMBEDS AVEC ID (FIX) ---
+async function generatePhotoEmbed(guild) {
+  let desc = "";
 
-  ctx.fillStyle = "#000";
-  ctx.fillRect(0, 0, 800, 160);
-
-  ctx.fillStyle = "#fff";
-  ctx.font = "bold 50px sans-serif";
-  ctx.fillText("PRIME NETWORK", 50, 75);
-
-  ctx.font = "24px sans-serif";
-  ctx.fillText("DEVIS & FACTURATION OFFICIELLE", 50, 120);
-
-  ctx.fillStyle = "#000";
-  ctx.font = "bold 28px sans-serif";
-  ctx.fillText(`CLIENT : ${data.client}`, 50, 230);
-
-  ctx.font = "22px sans-serif";
-  ctx.fillText(`Téléphone : ${data.telephone}`, 50, 280);
-  ctx.fillText(`Prestation : ${data.photos} photo(s)`, 50, 320);
-
-  ctx.beginPath();
-  ctx.moveTo(50, 360);
-  ctx.lineTo(750, 360);
-  ctx.stroke();
-
-  ctx.font = "20px sans-serif";
-  ctx.fillText(data.description, 50, 420);
-
-  ctx.font = "bold 35px sans-serif";
-  ctx.fillText(`TOTAL : $${data.prix}`, 50, 850);
-
-  if (signatureName) {
-    ctx.font = "50px 'SignatureFont'";
-    ctx.fillText(signatureName, 450, 920);
+  for (const userId in photoStatuses) {
+    try {
+      const member = await guild.members.fetch(userId);
+      const name = member.nickname || member.user.username;
+      desc += `• **${name}** → ${photoStatuses[userId]}\n`;
+    } catch {
+      delete photoStatuses[userId];
+    }
   }
 
-  return canvas.toBuffer();
+  if (!desc) desc = "_Aucun photographe_";
+
+  return new EmbedBuilder()
+    .setTitle("📸 Planning Photographes")
+    .setColor("#00bfff")
+    .setDescription(desc)
+    .setTimestamp();
 }
 
-// --- PLANNING ---
+async function generateModelEmbed(guild) {
+  let desc = "";
+
+  for (const userId in modelStatuses) {
+    try {
+      const member = await guild.members.fetch(userId);
+      const name = member.nickname || member.user.username;
+      desc += `• **${name}** → ${modelStatuses[userId]}\n`;
+    } catch {
+      delete modelStatuses[userId];
+    }
+  }
+
+  if (!desc) desc = "_Aucun modèle_";
+
+  return new EmbedBuilder()
+    .setTitle("👠 Planning Modèles")
+    .setColor("#ff69b4")
+    .setDescription(desc)
+    .setTimestamp();
+}
+
+function generateDashboardEmbed() {
+  const p = Object.values(photoStatuses).filter(s => s === "🟢").length;
+  const m = Object.values(modelStatuses).filter(s => s === "🟢").length;
+
+  return new EmbedBuilder()
+    .setTitle("📊 Dashboard Global")
+    .setColor("#2f3136")
+    .addFields(
+      { name: "📸 Photographes actifs", value: `${p}`, inline: true },
+      { name: "👠 Modèles actifs", value: `${m}`, inline: true }
+    )
+    .setTimestamp();
+}
+
+// --- PANELS ---
 const dispoButtons = new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId("dispo_on").setLabel("🟢 Disponible").setStyle(ButtonStyle.Success),
   new ButtonBuilder().setCustomId("dispo_off").setLabel("🔴 Indisponible").setStyle(ButtonStyle.Danger)
 );
-
-function generateEmbed(title, data, color) {
-  const desc = Object.entries(data)
-    .map(([u, s]) => `• **${u}** → ${s}`)
-    .join("\n") || "_Aucun_";
-
-  return new EmbedBuilder()
-    .setTitle(title)
-    .setColor(color)
-    .setDescription(desc)
-    .setTimestamp();
-}
 
 async function updatePanel(channelId, embed, key) {
   const channel = await client.channels.fetch(channelId);
@@ -127,32 +134,61 @@ async function updatePanel(channelId, embed, key) {
   }
 
   if (!msg) {
-    msg = await channel.send({ embeds: [embed], components: [dispoButtons] });
+    msg = await channel.send({
+      embeds: [embed],
+      components: key !== "dashboardMessageId" ? [dispoButtons] : []
+    });
     panels[key] = msg.id;
     savePanels(panels);
   } else {
-    await msg.edit({ embeds: [embed], components: [dispoButtons] });
+    await msg.edit({
+      embeds: [embed],
+      components: key !== "dashboardMessageId" ? [dispoButtons] : []
+    });
   }
 }
 
 async function refreshAll() {
-  await updatePanel(PHOTO_CHANNEL_ID, generateEmbed("📸 Photographes", photoStatuses, "#00bfff"), "photoMessageId");
-  await updatePanel(MODEL_CHANNEL_ID, generateEmbed("👠 Modèles", modelStatuses, "#ff69b4"), "modelMessageId");
+  const guild = await client.guilds.fetch(GUILD_ID);
+
+  await updatePanel(PHOTO_CHANNEL_ID, await generatePhotoEmbed(guild), "photoMessageId");
+  await updatePanel(MODEL_CHANNEL_ID, await generateModelEmbed(guild), "modelMessageId");
+  await updatePanel(DASHBOARD_CHANNEL_ID, generateDashboardEmbed(), "dashboardMessageId");
+
+  saveStatuses({ photoStatuses, modelStatuses });
 }
+
+// --- AUTO RECREATE ---
+client.on("messageDelete", async (msg) => {
+  const panels = getPanels();
+
+  if (
+    msg.id === panels.photoMessageId ||
+    msg.id === panels.modelMessageId ||
+    msg.id === panels.dashboardMessageId
+  ) {
+    console.log("🔁 Panel supprimé → recréation");
+    await refreshAll();
+  }
+});
 
 // --- READY ---
 client.once("ready", async () => {
-  console.log("✅ Bot en ligne");
+  console.log("✅ Bot prêt");
   await refreshAll();
 });
 
 // --- INTERACTIONS ---
 client.on("interactionCreate", async interaction => {
 
-  const username = interaction.user.username;
+  const userId = interaction.user.id;
+  const username = interaction.member?.nickname || interaction.user.username;
 
   // --- WATERMARK ---
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
+
+    if (interaction.channelId !== WATERMARK_CHANNEL_ID)
+      return interaction.reply({ content: "❌ Mauvais salon", flags: 64 });
 
     await interaction.deferReply();
 
@@ -160,7 +196,7 @@ client.on("interactionCreate", async interaction => {
     const pos = interaction.options.getString("position") || "southeast";
     const logo = interaction.options.getString("logo") || "1";
 
-    const watermarkFile =
+    const file =
       logo === "2" ? "watermark2.png" :
       logo === "3" ? "watermark3.png" :
       "watermark.png";
@@ -172,9 +208,8 @@ client.on("interactionCreate", async interaction => {
       const img = sharp(buffer);
       const meta = await img.metadata();
 
-      const wMark = await sharp(path.join(__dirname, watermarkFile))
+      const wMark = await sharp(path.join(__dirname, file))
         .resize({ width: Math.floor(meta.width * 0.06) })
-        .png()
         .toBuffer();
 
       const out = await img.composite([{
@@ -184,12 +219,12 @@ client.on("interactionCreate", async interaction => {
       }]).toBuffer();
 
       await interaction.editReply({
-        files: [new AttachmentBuilder(out, { name: "watermark.png" })]
+        files: [new AttachmentBuilder(out, { name: "prime.png" })]
       });
 
-    } catch (err) {
-      console.error(err);
-      await interaction.editReply("❌ Erreur.");
+    } catch (e) {
+      console.error(e);
+      await interaction.editReply("❌ Erreur watermark");
     }
   }
 
@@ -199,17 +234,30 @@ client.on("interactionCreate", async interaction => {
     await interaction.deferReply();
 
     const data = {
-      client: interaction.options.getString("client"),
-      telephone: interaction.options.getString("telephone"),
-      photos: interaction.options.getInteger("photos"),
-      description: interaction.options.getString("description"),
-      prix: interaction.options.getInteger("prix")
+      client: interaction.options.getString('client'),
+      telephone: interaction.options.getString('telephone'),
+      photos: interaction.options.getInteger('photos'),
+      description: interaction.options.getString('description'),
+      prix: interaction.options.getInteger('prix')
     };
 
     const id = Date.now().toString();
     devisCache.set(id, data);
 
-    const buffer = await createPrimeDevis(data);
+    const canvas = createCanvas(800, 1000);
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, 800, 1000);
+
+    ctx.fillStyle = "#000";
+    ctx.font = "30px sans-serif";
+    ctx.fillText(`Client: ${data.client}`, 50, 100);
+    ctx.fillText(`Téléphone: ${data.telephone}`, 50, 150);
+    ctx.fillText(`Photos: ${data.photos}`, 50, 200);
+    ctx.fillText(`Prix: $${data.prix}`, 50, 250);
+
+    const buffer = canvas.toBuffer();
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`sign_${id}`).setLabel("Signer").setStyle(ButtonStyle.Success),
@@ -225,30 +273,18 @@ client.on("interactionCreate", async interaction => {
   // --- BOUTONS ---
   if (interaction.isButton()) {
 
-    if (interaction.customId.startsWith("sign_")) {
-      const id = interaction.customId.split("_")[1];
-      const data = devisCache.get(id);
+    const status = interaction.customId === "dispo_on" ? "🟢" : "🔴";
 
-      const buffer = await createPrimeDevis(data, interaction.user.username);
-
-      await interaction.update({
-        content: "✅ Signé",
-        files: [new AttachmentBuilder(buffer, { name: "facture.png" })],
-        components: []
-      });
+    if (interaction.channelId === PHOTO_CHANNEL_ID) {
+      photoStatuses[userId] = status;
+    } else if (interaction.channelId === MODEL_CHANNEL_ID) {
+      modelStatuses[userId] = status;
     }
 
-    if (interaction.customId === "refuse") {
-      return interaction.update({ content: "❌ Refusé", components: [] });
-    }
+    saveStatuses({ photoStatuses, modelStatuses });
+    await refreshAll();
 
-    if (interaction.customId === "dispo_on" || interaction.customId === "dispo_off") {
-      const status = interaction.customId === "dispo_on" ? "🟢" : "🔴";
-      photoStatuses[username] = status;
-      saveStatuses({ photoStatuses, modelStatuses });
-      await refreshAll();
-      return interaction.reply({ content: "✅ MAJ", flags: 64 });
-    }
+    return interaction.reply({ content: "✅ Statut mis à jour", flags: 64 });
   }
 });
 
