@@ -222,28 +222,39 @@ client.on("interactionCreate", async interaction => {
       let left = 0;
 
       switch (pos) {
-        case "top-left":
-          top = margin; left = margin; break;
-        case "top-right":
-          top = margin; left = meta.width - wMeta.width - margin; break;
-        case "bottom-left":
-          top = meta.height - wMeta.height - margin; left = margin; break;
-        case "bottom-right":
-          top = meta.height - wMeta.height - margin;
-          left = meta.width - wMeta.width - margin; break;
-        case "center":
-          top = (meta.height - wMeta.height) / 2;
-          left = (meta.width - wMeta.width) / 2; break;
-        case "top-center":
-          top = margin;
-          left = (meta.width - wMeta.width) / 2; break;
-        case "bottom-center":
-          top = meta.height - wMeta.height - margin;
-          left = (meta.width - wMeta.width) / 2; break;
-        default:
-          top = meta.height - wMeta.height - margin;
-          left = meta.width - wMeta.width - margin;
-      }
+        const position = pos || "southeast";
+
+switch (position) {
+  case "northwest":
+    top = margin;
+    left = margin;
+    break;
+  case "northeast":
+    top = margin;
+    left = meta.width - wMeta.width - margin;
+    break;
+  case "southwest":
+    top = meta.height - wMeta.height - margin;
+    left = margin;
+    break;
+  case "southeast":
+    top = meta.height - wMeta.height - margin;
+    left = meta.width - wMeta.width - margin;
+    break;
+  case "center":
+  case "centre":
+    top = (meta.height - wMeta.height) / 2;
+    left = (meta.width - wMeta.width) / 2;
+    break;
+  case "north":
+    top = margin;
+    left = (meta.width - wMeta.width) / 2;
+    break;
+  case "south":
+    top = meta.height - wMeta.height - margin;
+    left = (meta.width - wMeta.width) / 2;
+    break;
+}
 
       const out = await img.composite([{
         input: wMarkBuffer,
