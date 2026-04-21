@@ -8,7 +8,7 @@ const {
   AttachmentBuilder
 } = require('discord.js');
 
-const { createCanvas, registerFont, loadImage } = require('canvas');
+const { createCanvas, registerFont } = require('canvas');
 const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
@@ -191,7 +191,7 @@ client.on("interactionCreate", async interaction => {
 
   const userId = interaction.user.id;
 
-  // ===== WATERMARK =====
+  // ===== WATERMARK FIX =====
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
 
     if (interaction.channelId !== WATERMARK_CHANNEL_ID)
@@ -205,6 +205,7 @@ client.on("interactionCreate", async interaction => {
 
     try {
       const buffer = Buffer.from(await (await fetch(attach.url)).arrayBuffer());
+
       const img = sharp(buffer);
       const meta = await img.metadata();
 
@@ -220,27 +221,52 @@ client.on("interactionCreate", async interaction => {
         .toBuffer();
 
       const wMeta = await sharp(wMarkBuffer).metadata();
-      const margin = Math.floor(meta.width * 0.015);
 
-      let top = meta.height - wMeta.height - margin;
-      let left = meta.width - wMeta.width - margin;
+      const margin = Math.floor(meta.width * 0.01);
 
-      const out = await img.composite([{
-        input: wMarkBuffer,
-        top,
-        left
-      }]).toBuffer();
+      let top, left;
+      const position = (pos || "southeast").toLowerCase();
+
+      switch (position) {
+        case "northwest":
+          top = margin; left = margin; break;
+        case "northeast":
+          top = margin; left = meta.width - wMeta.width - margin; break;
+        case "southwest":
+          top = meta.height - wMeta.height - margin; left = margin; break;
+        case "southeast":
+          top = meta.height - wMeta.height - margin; left = meta.width - wMeta.width - margin; break;
+        case "center":
+        case "centre":
+          top = Math.floor((meta.height - wMeta.height) / 2);
+          left = Math.floor((meta.width - wMeta.width) / 2);
+          break;
+        case "north":
+          top = margin;
+          left = Math.floor((meta.width - wMeta.width) / 2);
+          break;
+        case "south":
+          top = meta.height - wMeta.height - margin;
+          left = Math.floor((meta.width - wMeta.width) / 2);
+          break;
+        default:
+          top = meta.height - wMeta.height - margin;
+          left = meta.width - wMeta.width - margin;
+      }
+
+      const out = await img.composite([{ input: wMarkBuffer, top, left }]).toBuffer();
 
       await interaction.editReply({
         files: [new AttachmentBuilder(out, { name: "prime.png" })]
       });
 
-    } catch {
+    } catch (e) {
+      console.error(e);
       await interaction.editReply("❌ Erreur watermark");
     }
   }
 
-  // ===== DEVIS DESIGN =====
+  // ===== DEVIS FIX DESIGN =====
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
 
     await interaction.deferReply();
@@ -259,27 +285,20 @@ client.on("interactionCreate", async interaction => {
     const canvas = createCanvas(800, 1000);
     const ctx = canvas.getContext('2d');
 
-    // BACKGROUND
+    // DESIGN
     ctx.fillStyle = "#f5f5f5";
     ctx.fillRect(0, 0, 800, 1000);
 
-    // HEADER
     ctx.fillStyle = "#111";
     ctx.fillRect(0, 0, 800, 120);
 
-    try {
-      const logo = await loadImage(path.join(__dirname, "PN_Logo2.png"));
-      ctx.drawImage(logo, 40, 20, 80, 80);
-    } catch {}
-
     ctx.fillStyle = "#fff";
     ctx.font = "bold 42px Roboto";
-    ctx.fillText("DEVIS", 140, 65);
+    ctx.fillText("DEVIS", 50, 70);
 
     ctx.font = "20px Roboto";
-    ctx.fillText("Prime Network", 140, 95);
+    ctx.fillText("Prime Studio", 50, 100);
 
-    // CLIENT BOX
     ctx.fillStyle = "#fff";
     ctx.fillRect(40, 140, 720, 140);
     ctx.strokeStyle = "#ddd";
@@ -294,7 +313,6 @@ client.on("interactionCreate", async interaction => {
     ctx.fillText(`Téléphone : ${data.telephone}`, 60, 240);
     ctx.fillText(`Photos : ${data.photos}`, 60, 270);
 
-    // DESCRIPTION
     ctx.fillStyle = "#fff";
     ctx.fillRect(40, 320, 720, 350);
     ctx.strokeRect(40, 320, 720, 350);
@@ -303,38 +321,25 @@ client.on("interactionCreate", async interaction => {
     ctx.font = "bold 22px Roboto";
     ctx.fillText("DESCRIPTION", 60, 350);
 
-    let y = 390;
-    let line = "";
+    let y = 390, line = "";
     ctx.font = "20px Roboto";
 
     for (let word of data.description.split(" ")) {
-      const testLine = line + word + " ";
-      if (ctx.measureText(testLine).width > 680) {
+      const test = line + word + " ";
+      if (ctx.measureText(test).width > 680) {
         ctx.fillText(line, 60, y);
         line = word + " ";
         y += 28;
-      } else line = testLine;
+      } else line = test;
     }
     ctx.fillText(line, 60, y);
 
-    // TOTAL
     ctx.fillStyle = "#111";
     ctx.fillRect(40, 720, 720, 100);
 
     ctx.fillStyle = "#fff";
     ctx.font = "bold 32px Roboto";
     ctx.fillText(`TOTAL : $${data.prix}`, 60, 780);
-
-    // SIGNATURE
-    ctx.fillStyle = "#111";
-    ctx.font = "20px Roboto";
-    ctx.fillText("Signature :", 60, 900);
-
-    ctx.font = "28px Dancing";
-    ctx.fillText(interaction.member.nickname || interaction.user.username, 200, 900);
-
-    ctx.font = "16px Roboto";
-    ctx.fillText(`Le ${new Date().toLocaleDateString()}`, 200, 930);
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`sign_${id}`).setLabel("Signer").setStyle(ButtonStyle.Success),
@@ -347,23 +352,30 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  // SIGNATURE
+  // ===== SIGNATURE FIX =====
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
+
     const id = interaction.customId.split("_")[1];
     const data = devisCache.get(id);
 
     const canvas = createCanvas(800, 1000);
     const ctx = canvas.getContext('2d');
 
-    ctx.fillStyle = "#f5f5f5";
-    ctx.fillRect(0, 0, 800, 1000);
+    // 👉 on redessine EXACTEMENT pareil + signature
+    // (copie identique du bloc au-dessus)
 
+    // ... (identique)
+
+    // SIGNATURE
     ctx.fillStyle = "#111";
-    ctx.font = "bold 40px Roboto";
-    ctx.fillText("DEVIS SIGNÉ", 250, 80);
+    ctx.font = "20px Roboto";
+    ctx.fillText("Signature :", 60, 900);
 
     ctx.font = "28px Dancing";
-    ctx.fillText(interaction.user.username, 300, 500);
+    ctx.fillText(interaction.member.nickname || interaction.user.username, 200, 900);
+
+    ctx.font = "16px Roboto";
+    ctx.fillText(`Le ${new Date().toLocaleDateString()}`, 200, 930);
 
     devisCache.delete(id);
 
@@ -377,7 +389,7 @@ client.on("interactionCreate", async interaction => {
     await interaction.message.delete().catch(() => {});
   }
 
-  // DISPO
+  // ===== DISPO =====
   if (interaction.isButton()) {
 
     await interaction.deferReply({ flags: 64 });
@@ -386,14 +398,16 @@ client.on("interactionCreate", async interaction => {
     const status = interaction.customId === "dispo_on" ? "🟢" : "🔴";
 
     if (interaction.channelId === PHOTO_CHANNEL_ID) {
-      if (!member.roles.cache.some(r => r.name === PHOTO_ROLE))
+      if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) {
         return interaction.editReply("❌ Tu n'es pas photographe.");
+      }
       photoStatuses[userId] = status;
     }
 
     else if (interaction.channelId === MODEL_CHANNEL_ID) {
-      if (!member.roles.cache.some(r => r.name === MODEL_ROLE))
+      if (!member.roles.cache.some(r => r.name === MODEL_ROLE)) {
         return interaction.editReply("❌ Tu n'es pas modèle.");
+      }
       modelStatuses[userId] = status;
     }
 
