@@ -197,7 +197,6 @@ client.on("interactionCreate", async interaction => {
       let top = 0, left = 0;
       const position = (pos || "southeast").toLowerCase();
 
-      // Gestion de toutes les positions y compris milieu
       switch(position) {
         case "northwest": top = marginY; left = marginX; break;
         case "northeast": top = marginY; left = meta.width - wMeta.width - marginX; break;
@@ -262,15 +261,15 @@ client.on("interactionCreate", async interaction => {
     await interaction.editReply({ files:[new AttachmentBuilder(canvas.toBuffer(),{name:"devis.png"})], components:[row] });
   }
 
-  // ===== SIGNATURE ET BOUTONS D'ENVOI =====
+  // ===== SIGNATURE ET BOUTON ENVOI =====
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
     const id = interaction.customId.split("_")[1];
     const data = devisCache.get(id);
-    devisSigners.set(id, interaction.user.id);
+    devisSigners.set(id, interaction.user.id); // tracker le signataire
 
     const canvas = createCanvas(800,1000);
     const ctx = canvas.getContext('2d');
-
+    // DESIGN + SIGNATURE
     ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
     ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
     ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
@@ -307,17 +306,21 @@ client.on("interactionCreate", async interaction => {
   // ===== ENVOI DES DEVIS =====
   if (interaction.isButton() && interaction.customId.startsWith("send_")) {
     const parts = interaction.customId.split("_");
-    const id = parts[parts.length-1];
-    const signerId = devisSigners.get(id);
+    const action = parts[1];
+    const id = parts[2];
     const file = interaction.message.attachments.first();
     const data = devisCache.get(id);
 
-    if (interaction.customId.startsWith("send_mp") && signerId) {
+    if (!file) return interaction.reply({ content: "❌ Aucun fichier trouvé pour ce devis.", flags: 64 });
+
+    if (action === "mp") {
+      const signerId = devisSigners.get(id);
+      if (!signerId) return interaction.reply({ content: "❌ Impossible de trouver le client.", flags: 64 });
       const member = await client.users.fetch(signerId);
       await member.send({ content:`Merci de votre confiance, Prime Network™ vous remercie et espère vous revoir très bientôt !`, files:[file] });
     }
 
-    if (interaction.customId.startsWith("send_channel")) {
+    if (action === "channel") {
       const channel = await client.channels.fetch(DEVIS_CHANNEL_ID);
       await channel.send({ content:`Client : ${data.client}\nTéléphone : ${data.telephone}`, files:[file] });
     }
@@ -343,7 +346,6 @@ client.on("interactionCreate", async interaction => {
     await refreshAll();
     return interaction.editReply("✅ Statut mis à jour");
   }
-
 });
 
 client.login(TOKEN);
