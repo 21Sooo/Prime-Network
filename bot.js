@@ -34,8 +34,8 @@ const DEVIS_CHANNEL_ID = "1466817112252219558";
 const PHOTO_ROLE = "🎥・Prime Photographer";
 const MODEL_ROLE = "👠・Prime Model";
 
-const devisCache = new Map();       // Données des devis
-const devisSigners = new Map();     // Pour tracker qui a signé
+const devisCache = new Map();      // données devis
+const devisSigners = new Map();    // pour savoir qui a signé
 
 // FILES
 const panelFile = "./panels.json";
@@ -172,8 +172,7 @@ client.on("interactionCreate", async interaction => {
 
   // ===== WATERMARK =====
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
-    if (interaction.channelId !== WATERMARK_CHANNEL_ID)
-      return interaction.reply({ content: "❌ Mauvais salon", flags: 64 });
+    if (interaction.channelId !== WATERMARK_CHANNEL_ID) return interaction.reply({ content: "❌ Mauvais salon", flags: 64 });
 
     await interaction.deferReply();
     const attach = interaction.options.getAttachment("image");
@@ -202,7 +201,7 @@ client.on("interactionCreate", async interaction => {
         case "northeast": top = marginY; left = meta.width - wMeta.width - marginX; break;
         case "southwest": top = meta.height - wMeta.height - marginY; left = marginX; break;
         case "southeast": top = meta.height - wMeta.height - marginY; left = meta.width - wMeta.width - marginX; break;
-        case "center": case "centre": top = (meta.height - wMeta.height)/2; left = (meta.width - wMeta.width)/2; break;
+        case "center": top = (meta.height - wMeta.height)/2; left = (meta.width - wMeta.width)/2; break;
         case "north": top = marginY; left = (meta.width - wMeta.width)/2; break;
         case "south": top = meta.height - wMeta.height - marginY; left = (meta.width - wMeta.width)/2; break;
       }
@@ -243,8 +242,7 @@ client.on("interactionCreate", async interaction => {
     ctx.fillStyle="#ffffff"; ctx.fillRect(40,320,720,350);
     ctx.strokeRect(40,320,720,350);
     ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("DESCRIPTION",60,350);
-    let y=390,line="";
-    ctx.font="20px Roboto";
+    let y=390,line=""; ctx.font="20px Roboto";
     for (let word of data.description.split(" ")) {
       const testLine=line+word+" ";
       if (ctx.measureText(testLine).width>680) { ctx.fillText(line,60,y); line=word+" "; y+=28; } else line=testLine;
@@ -261,14 +259,15 @@ client.on("interactionCreate", async interaction => {
     await interaction.editReply({ files:[new AttachmentBuilder(canvas.toBuffer(),{name:"devis.png"})], components:[row] });
   }
 
-  // ===== SIGNATURE ET BOUTON ENVOI =====
+  // ===== SIGNATURE ET ENVOI =====
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
     const id = interaction.customId.split("_")[1];
     const data = devisCache.get(id);
-    devisSigners.set(id, interaction.user.id); // tracker le signataire
+    devisSigners.set(id, interaction.user.id);
 
     const canvas = createCanvas(800,1000);
     const ctx = canvas.getContext('2d');
+
     // DESIGN + SIGNATURE
     ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
     ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
@@ -295,37 +294,39 @@ client.on("interactionCreate", async interaction => {
     ctx.font="28px Dancing"; ctx.fillText(interaction.member.nickname || interaction.user.username,200,900);
     ctx.font="16px Roboto"; ctx.fillText(`Le ${new Date().toLocaleDateString()}`,200,930);
 
+    const signedBuffer = canvas.toBuffer();
+    devisCache.set(id, { ...data, signedBuffer });
+
     const rowSend = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`send_mp_${id}`).setLabel("📩 MP").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(`send_channel_${id}`).setLabel("📤 Channel").setStyle(ButtonStyle.Secondary)
     );
 
-    return interaction.update({ files:[new AttachmentBuilder(canvas.toBuffer(),{name:"signed.png"})], components:[rowSend] });
+    return interaction.update({ files:[new AttachmentBuilder(signedBuffer,{name:"signed.png"})], components:[rowSend] });
   }
 
-  // ===== ENVOI DES DEVIS =====
+  // ===== ENVOI =====
   if (interaction.isButton() && interaction.customId.startsWith("send_")) {
     const parts = interaction.customId.split("_");
     const action = parts[1];
     const id = parts[2];
-    const file = interaction.message.attachments.first();
     const data = devisCache.get(id);
 
-    if (!file) return interaction.reply({ content: "❌ Aucun fichier trouvé pour ce devis.", flags: 64 });
+    if (!data || !data.signedBuffer) return interaction.reply({ content: "❌ Impossible de trouver le devis signé.", flags: 64 });
 
     if (action === "mp") {
       const signerId = devisSigners.get(id);
       if (!signerId) return interaction.reply({ content: "❌ Impossible de trouver le client.", flags: 64 });
       const member = await client.users.fetch(signerId);
-      await member.send({ content:`Merci de votre confiance, Prime Network™ vous remercie et espère vous revoir très bientôt !`, files:[file] });
+      await member.send({ content:`Merci de votre confiance, Prime Network™ vous remercie et espère vous revoir très bientôt !`, files:[new AttachmentBuilder(data.signedBuffer, { name: "devis.png" })] });
     }
 
     if (action === "channel") {
       const channel = await client.channels.fetch(DEVIS_CHANNEL_ID);
-      await channel.send({ content:`Client : ${data.client}\nTéléphone : ${data.telephone}`, files:[file] });
+      await channel.send({ content:`Client : ${data.client}\nTéléphone : ${data.telephone}`, files:[new AttachmentBuilder(data.signedBuffer, { name: "devis.png" })] });
     }
 
-    await interaction.reply({ content:"✅ Envoyé !", flags:64 });
+    return interaction.reply({ content:"✅ Envoyé !", flags:64 });
   }
 
   // ===== DISPO =====
@@ -333,7 +334,6 @@ client.on("interactionCreate", async interaction => {
     await interaction.deferReply({ flags: 64 });
     const member = interaction.member;
     const status = interaction.customId === "dispo_on" ? "🟢" : "🔴";
-
     if (interaction.channelId === PHOTO_CHANNEL_ID) {
       if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) return interaction.editReply("❌ Tu n'es pas photographe.");
       photoStatuses[userId] = status;
@@ -341,7 +341,6 @@ client.on("interactionCreate", async interaction => {
       if (!member.roles.cache.some(r => r.name === MODEL_ROLE)) return interaction.editReply("❌ Tu n'es pas modèle.");
       modelStatuses[userId] = status;
     } else return;
-
     saveStatuses({ photoStatuses, modelStatuses });
     await refreshAll();
     return interaction.editReply("✅ Statut mis à jour");
