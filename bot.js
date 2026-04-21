@@ -12,12 +12,11 @@ const { createCanvas, registerFont } = require('canvas');
 const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
-const fetch = require("node-fetch");
 
 const TOKEN = process.env.TOKEN;
 const GUILD_ID = "1403500050067230730";
 
-// FONTS FIX
+// FONTS
 registerFont('./DancingScript.ttf', { family: 'Dancing' });
 registerFont('./Roboto-Regular.ttf', { family: 'Roboto' });
 
@@ -64,7 +63,7 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
 });
 
-// EMBEDS (inchangés)
+// EMBEDS
 async function generatePhotoEmbed(guild) {
   let desc = "";
 
@@ -123,13 +122,13 @@ function generateDashboardEmbed() {
     .setTimestamp();
 }
 
-// BUTTONS (inchangé)
+// BUTTONS
 const dispoButtons = new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId("dispo_on").setLabel("🟢 Disponible").setStyle(ButtonStyle.Success),
   new ButtonBuilder().setCustomId("dispo_off").setLabel("🔴 Indisponible").setStyle(ButtonStyle.Danger)
 );
 
-// PANELS (inchangé)
+// PANELS
 async function updatePanel(channelId, embed, key) {
   const channel = await client.channels.fetch(channelId);
   const panels = getPanels();
@@ -170,7 +169,7 @@ client.once("ready", async () => {
   await refreshAll();
 });
 
-// DELETE PANEL (inchangé)
+// AUTO RECREATE
 client.on("messageDelete", async (msg) => {
   const panels = getPanels();
 
@@ -188,7 +187,7 @@ client.on("interactionCreate", async interaction => {
 
   const userId = interaction.user.id;
 
-  // WATERMARK FIX
+  // WATERMARK
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
 
     if (interaction.channelId !== WATERMARK_CHANNEL_ID)
@@ -218,7 +217,7 @@ client.on("interactionCreate", async interaction => {
       "watermark.png";
 
     try {
-      const buffer = await (await fetch(attach.url)).buffer();
+      const buffer = Buffer.from(await (await fetch(attach.url)).arrayBuffer());
 
       const img = sharp(buffer);
       const meta = await img.metadata();
@@ -243,7 +242,7 @@ client.on("interactionCreate", async interaction => {
     }
   }
 
-  // DEVIS FIX POLICE
+  // DEVIS
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
 
     await interaction.deferReply();
@@ -273,20 +272,18 @@ client.on("interactionCreate", async interaction => {
     ctx.fillText(`Photos: ${data.photos}`, 50, 200);
     ctx.fillText(`Prix: $${data.prix}`, 50, 250);
 
-    const buffer = canvas.toBuffer();
-
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`sign_${id}`).setLabel("Signer").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`refuse_${id}`).setLabel("Refuser").setStyle(ButtonStyle.Danger)
     );
 
     await interaction.editReply({
-      files: [new AttachmentBuilder(buffer, { name: "devis.png" })],
+      files: [new AttachmentBuilder(canvas.toBuffer(), { name: "devis.png" })],
       components: [row]
     });
   }
 
-  // SIGNATURE FIX
+  // SIGNATURE
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
 
     const id = interaction.customId.split("_")[1];
@@ -325,7 +322,7 @@ client.on("interactionCreate", async interaction => {
     await interaction.message.delete().catch(() => {});
   }
 
-  // DISPO FIX
+  // DISPO
   if (interaction.isButton()) {
 
     await interaction.deferReply({ flags: 64 });
