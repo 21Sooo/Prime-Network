@@ -68,17 +68,131 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
 });
 
-// ===== READY =====
+// EMBEDS
+async function generatePhotoEmbed(guild) {
+  let desc = "";
+
+  for (const userId in photoStatuses) {
+    try {
+      const member = await guild.members.fetch(userId);
+      const name = member.nickname || member.user.username;
+      desc += `• **${name}** → ${photoStatuses[userId]}\n`;
+    } catch {
+      delete photoStatuses[userId];
+    }
+  }
+
+  if (!desc) desc = "_Aucun photographe_";
+
+  return new EmbedBuilder()
+    .setTitle("📸 Planning Photographes")
+    .setColor("#00bfff")
+    .setDescription(desc)
+    .setTimestamp();
+}
+
+async function generateModelEmbed(guild) {
+  let desc = "";
+
+  for (const userId in modelStatuses) {
+    try {
+      const member = await guild.members.fetch(userId);
+      const name = member.nickname || member.user.username;
+      desc += `• **${name}** → ${modelStatuses[userId]}\n`;
+    } catch {
+      delete modelStatuses[userId];
+    }
+  }
+
+  if (!desc) desc = "_Aucun modèle_";
+
+  return new EmbedBuilder()
+    .setTitle("👠 Planning Modèles")
+    .setColor("#ff69b4")
+    .setDescription(desc)
+    .setTimestamp();
+}
+
+function generateDashboardEmbed() {
+  const p = Object.values(photoStatuses).filter(s => s === "🟢").length;
+  const m = Object.values(modelStatuses).filter(s => s === "🟢").length;
+
+  return new EmbedBuilder()
+    .setTitle("📊 Dashboard Global")
+    .setColor("#2f3136")
+    .addFields(
+      { name: "📸 Photographes actifs", value: `${p}`, inline: true },
+      { name: "👠 Modèles actifs", value: `${m}`, inline: true }
+    )
+    .setTimestamp();
+}
+
+// BUTTONS
+const dispoButtons = new ActionRowBuilder().addComponents(
+  new ButtonBuilder().setCustomId("dispo_on").setLabel("🟢 Disponible").setStyle(ButtonStyle.Success),
+  new ButtonBuilder().setCustomId("dispo_off").setLabel("🔴 Indisponible").setStyle(ButtonStyle.Danger)
+);
+
+// PANELS
+async function updatePanel(channelId, embed, key) {
+  const channel = await client.channels.fetch(channelId);
+  const panels = getPanels();
+
+  let msg;
+  if (panels[key]) {
+    try { msg = await channel.messages.fetch(panels[key]); } catch {}
+  }
+
+  if (!msg) {
+    msg = await channel.send({
+      embeds: [embed],
+      components: key !== "dashboardMessageId" ? [dispoButtons] : []
+    });
+    panels[key] = msg.id;
+    savePanels(panels);
+  } else {
+    await msg.edit({
+      embeds: [embed],
+      components: key !== "dashboardMessageId" ? [dispoButtons] : []
+    });
+  }
+}
+
+async function refreshAll() {
+  const guild = await client.guilds.fetch(GUILD_ID);
+
+  await updatePanel(PHOTO_CHANNEL_ID, await generatePhotoEmbed(guild), "photoMessageId");
+  await updatePanel(MODEL_CHANNEL_ID, await generateModelEmbed(guild), "modelMessageId");
+  await updatePanel(DASHBOARD_CHANNEL_ID, generateDashboardEmbed(), "dashboardMessageId");
+
+  saveStatuses({ photoStatuses, modelStatuses });
+}
+
+// READY
 client.once("ready", async () => {
   console.log("✅ Bot prêt");
+  await refreshAll();
 });
 
-// ===== INTERACTIONS =====
+// DELETE PANEL
+client.on("messageDelete", async (msg) => {
+  const panels = getPanels();
+
+  if (
+    msg.id === panels.photoMessageId ||
+    msg.id === panels.modelMessageId ||
+    msg.id === panels.dashboardMessageId
+  ) {
+    await refreshAll();
+  }
+});
+
+// INTERACTIONS
 client.on("interactionCreate", async interaction => {
 
   const userId = interaction.user.id;
 
-  // ===== WATERMARK =====
+  // ===== WATERMARK FIX =====
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
 
     if (interaction.channelId !== WATERMARK_CHANNEL_ID)
@@ -88,6 +202,7 @@ client.on("interactionCreate", async interaction => {
 
     const attach = interaction.options.getAttachment("image");
     const pos = interaction.options.getString("position");
+    const logo = interaction.options.getString("logo") || "1";
 
     try {
       const buffer = Buffer.from(await (await fetch(attach.url)).arrayBuffer());
@@ -95,8 +210,15 @@ client.on("interactionCreate", async interaction => {
       const img = sharp(buffer);
       const meta = await img.metadata();
 
-      const wMarkBuffer = await sharp("watermark.png")
-        .resize({ width: Math.floor(meta.width * 0.035) })
+      const logoWidth = Math.floor(meta.width * 0.035);
+
+      const wMarkBuffer = await sharp(path.join(__dirname,
+        logo === "2" ? "watermark2.png" :
+        logo === "3" ? "watermark3.png" :
+        "watermark.png"
+      ))
+        .resize({ width: logoWidth })
+        .png()
         .toBuffer();
 
       const wMeta = await sharp(wMarkBuffer).metadata();
@@ -107,7 +229,17 @@ client.on("interactionCreate", async interaction => {
       let top = 0;
       let left = 0;
 
-      switch ((pos || "southeast")) {
+      const position = (pos || "southeast").toLowerCase();
+
+      switch (position) {
+        case "northwest":
+          top = marginY;
+          left = marginX;
+          break;
+        case "northeast":
+          top = marginY;
+          left = meta.width - wMeta.width - marginX;
+          break;
         case "southwest":
           top = meta.height - wMeta.height - marginY;
           left = marginX;
@@ -116,24 +248,30 @@ client.on("interactionCreate", async interaction => {
           top = meta.height - wMeta.height - marginY;
           left = meta.width - wMeta.width - marginX;
           break;
+        case "center":
+        case "centre":
+          top = (meta.height - wMeta.height) / 2;
+          left = (meta.width - wMeta.width) / 2;
+          break;
       }
 
       const out = await img.composite([{
         input: wMarkBuffer,
-        top,
-        left
+        top: Math.round(top),
+        left: Math.round(left)
       }]).toBuffer();
 
       await interaction.editReply({
         files: [new AttachmentBuilder(out, { name: "prime.png" })]
       });
 
-    } catch {
+    } catch (e) {
+      console.error(e);
       await interaction.editReply("❌ Erreur watermark");
     }
   }
 
-  // ===== DEVIS =====
+  // ===== DEVIS + SIGNATURE + ENVOI =====
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
 
     await interaction.deferReply();
@@ -166,8 +304,9 @@ client.on("interactionCreate", async interaction => {
     ctx.font = "20px Roboto";
     ctx.fillText("Prime Studio", 50, 100);
 
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(40, 140, 720, 140);
+    ctx.strokeStyle = "#ddd";
     ctx.strokeRect(40, 140, 720, 140);
 
     ctx.fillStyle = "#111";
@@ -179,6 +318,29 @@ client.on("interactionCreate", async interaction => {
     ctx.fillText(`Téléphone : ${data.telephone}`, 60, 240);
     ctx.fillText(`Photos : ${data.photos}`, 60, 270);
 
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(40, 320, 720, 350);
+    ctx.strokeRect(40, 320, 720, 350);
+
+    ctx.fillStyle = "#111";
+    ctx.font = "bold 22px Roboto";
+    ctx.fillText("DESCRIPTION", 60, 350);
+
+    let y = 390;
+    let line = "";
+    ctx.font = "20px Roboto";
+
+    for (let word of data.description.split(" ")) {
+      const testLine = line + word + " ";
+      if (ctx.measureText(testLine).width > 680) {
+        ctx.fillText(line, 60, y);
+        line = word + " ";
+        y += 28;
+      } else line = testLine;
+    }
+    ctx.fillText(line, 60, y);
+
+    ctx.fillStyle = "#111";
     ctx.fillRect(40, 720, 720, 100);
 
     ctx.fillStyle = "#fff";
@@ -196,7 +358,6 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  // ===== SIGNATURE =====
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
 
     const id = interaction.customId.split("_")[1];
@@ -205,6 +366,8 @@ client.on("interactionCreate", async interaction => {
     const canvas = createCanvas(800, 1000);
     const ctx = canvas.getContext('2d');
 
+    // REFAIT DESIGN + SIGNATURE
+    // (même design, juste signature ajoutée)
     ctx.fillStyle = "#f5f5f5";
     ctx.fillRect(0, 0, 800, 1000);
 
@@ -218,14 +381,67 @@ client.on("interactionCreate", async interaction => {
     ctx.font = "20px Roboto";
     ctx.fillText("Prime Studio", 50, 100);
 
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(40, 140, 720, 140);
+    ctx.strokeStyle = "#ddd";
+    ctx.strokeRect(40, 140, 720, 140);
+
+    ctx.fillStyle = "#111";
+    ctx.font = "bold 22px Roboto";
+    ctx.fillText("CLIENT", 60, 170);
+
+    ctx.font = "20px Roboto";
+    ctx.fillText(`Nom : ${data.client}`, 60, 210);
+    ctx.fillText(`Téléphone : ${data.telephone}`, 60, 240);
+    ctx.fillText(`Photos : ${data.photos}`, 60, 270);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(40, 320, 720, 350);
+    ctx.strokeRect(40, 320, 720, 350);
+
+    ctx.fillStyle = "#111";
+    ctx.font = "bold 22px Roboto";
+    ctx.fillText("DESCRIPTION", 60, 350);
+
+    let y = 390;
+    let line = "";
+    ctx.font = "20px Roboto";
+
+    for (let word of data.description.split(" ")) {
+      const testLine = line + word + " ";
+      if (ctx.measureText(testLine).width > 680) {
+        ctx.fillText(line, 60, y);
+        line = word + " ";
+        y += 28;
+      } else line = testLine;
+    }
+    ctx.fillText(line, 60, y);
+
+    ctx.fillStyle = "#111";
+    ctx.fillRect(40, 720, 720, 100);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 32px Roboto";
+    ctx.fillText(`TOTAL : $${data.prix}`, 60, 780);
+
+    // SIGNATURE
     ctx.fillStyle = "#111";
     ctx.font = "20px Roboto";
     ctx.fillText("Signature :", 60, 900);
 
     ctx.font = "28px Dancing";
-    ctx.fillText(interaction.user.username, 200, 900);
+    ctx.fillText(
+      interaction.member.nickname || interaction.user.username,
+      200,
+      900
+    );
 
-    devisCache.delete(id);
+    ctx.font = "16px Roboto";
+    ctx.fillText(
+      `Le ${new Date().toLocaleDateString()}`,
+      200,
+      930
+    );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`send_mp_${id}`).setLabel("📩 MP").setStyle(ButtonStyle.Primary),
@@ -239,43 +455,38 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  // ===== ENVOI =====
+  // ENVOI
   if (interaction.isButton() && interaction.customId.startsWith("send_")) {
 
     const file = interaction.message.attachments.first();
-    const id = interaction.customId.split("_")[2];
-    const data = devisCache.get(id);
 
-    const clientUser = interaction.user;
+    const thankMsg = `Merci pour votre confiance 🤝\n— Prime Network™`;
 
-    // MP avec message
     if (interaction.customId.startsWith("send_mp")) {
-      await clientUser.send({
-        content: `Merci pour votre confiance chez Prime Network™ 🙏\nNous espérons vous revoir très bientôt !`,
+      await interaction.user.send({
+        content: thankMsg,
         files: [file]
       });
     }
 
-    // Channel avec infos
     if (interaction.customId.startsWith("send_channel")) {
       const channel = await client.channels.fetch(DEVIS_CHANNEL_ID);
       await channel.send({
-        content: `${data?.client} | ${data?.telephone}`,
+        content: `Client: ${interaction.user.username}`,
         files: [file]
       });
     }
 
-    // Les deux
     if (interaction.customId.startsWith("send_both")) {
       const channel = await client.channels.fetch(DEVIS_CHANNEL_ID);
 
-      await channel.send({
-        content: `${data?.client} | ${data?.telephone}`,
+      await interaction.user.send({
+        content: thankMsg,
         files: [file]
       });
 
-      await clientUser.send({
-        content: `Merci pour votre confiance chez Prime Network™ 🙏\nNous espérons vous revoir très bientôt !`,
+      await channel.send({
+        content: `Client: ${interaction.user.username}`,
         files: [file]
       });
     }
