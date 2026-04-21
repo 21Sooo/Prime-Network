@@ -16,9 +16,13 @@ const path = require("path");
 const TOKEN = process.env.TOKEN;
 const GUILD_ID = "1403500050067230730";
 
-// FONTS
-registerFont('./DancingScript.ttf', { family: 'Dancing' });
-registerFont('./Roboto-Regular.ttf', { family: 'Roboto' });
+// ✅ FONTS FIX
+try {
+  registerFont(path.join(__dirname, 'DancingScript.ttf'), { family: 'Dancing' });
+  registerFont(path.join(__dirname, 'Roboto-Regular.ttf'), { family: 'Roboto' });
+} catch (e) {
+  console.log("⚠️ Fonts non chargées");
+}
 
 // CONFIG
 const PHOTO_CHANNEL_ID = "1403500792106717235";
@@ -169,7 +173,7 @@ client.once("ready", async () => {
   await refreshAll();
 });
 
-// AUTO RECREATE
+// DELETE PANEL
 client.on("messageDelete", async (msg) => {
   const panels = getPanels();
 
@@ -187,7 +191,7 @@ client.on("interactionCreate", async interaction => {
 
   const userId = interaction.user.id;
 
-  // WATERMARK
+  // ===== WATERMARK FIX =====
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
 
     if (interaction.channelId !== WATERMARK_CHANNEL_ID)
@@ -200,21 +204,16 @@ client.on("interactionCreate", async interaction => {
     const logo = interaction.options.getString("logo") || "1";
 
     const map = {
-      "top-left": "northwest",
-      "top-right": "northeast",
-      "bottom-left": "southwest",
-      "bottom-right": "southeast",
       "center": "centre",
+      "bottom-right": "southeast",
+      "bottom-left": "southwest",
+      "top-right": "northeast",
+      "top-left": "northwest",
       "top-center": "north",
       "bottom-center": "south"
     };
 
-    const gravity = map[pos] || "centre";
-
-    const file =
-      logo === "2" ? "watermark2.png" :
-      logo === "3" ? "watermark3.png" :
-      "watermark.png";
+    const gravity = map[pos?.toLowerCase()] || "southeast";
 
     try {
       const buffer = Buffer.from(await (await fetch(attach.url)).arrayBuffer());
@@ -222,7 +221,11 @@ client.on("interactionCreate", async interaction => {
       const img = sharp(buffer);
       const meta = await img.metadata();
 
-      const wMark = await sharp(path.join(__dirname, file))
+      const wMark = await sharp(path.join(__dirname,
+        logo === "2" ? "watermark2.png" :
+        logo === "3" ? "watermark3.png" :
+        "watermark.png"
+      ))
         .resize({ width: Math.floor(meta.width * 0.06) })
         .toBuffer();
 
@@ -242,7 +245,7 @@ client.on("interactionCreate", async interaction => {
     }
   }
 
-  // DEVIS
+  // ===== DEVIS FIX =====
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
 
     await interaction.deferReply();
@@ -283,14 +286,11 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  // SIGNATURE
+  // SIGNATURE FIX
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
 
     const id = interaction.customId.split("_")[1];
     const devis = devisCache.get(id);
-
-    const name = interaction.member.nickname || interaction.user.username;
-    const date = new Date().toLocaleDateString();
 
     const canvas = createCanvas(800, 1000);
     const ctx = canvas.getContext('2d');
@@ -305,10 +305,10 @@ client.on("interactionCreate", async interaction => {
     ctx.fillText(`Prix: $${devis.prix}`, 50, 200);
 
     ctx.font = "28px Dancing";
-    ctx.fillText(name, 50, 850);
+    ctx.fillText(interaction.member.nickname || interaction.user.username, 50, 850);
 
     ctx.font = "20px Roboto";
-    ctx.fillText(`Signé le ${date}`, 50, 900);
+    ctx.fillText(`Signé le ${new Date().toLocaleDateString()}`, 50, 900);
 
     devisCache.delete(id);
 
@@ -322,7 +322,7 @@ client.on("interactionCreate", async interaction => {
     await interaction.message.delete().catch(() => {});
   }
 
-  // DISPO
+  // ===== DISPO FIX =====
   if (interaction.isButton()) {
 
     await interaction.deferReply({ flags: 64 });
