@@ -29,6 +29,7 @@ const PHOTO_CHANNEL_ID = "1403500792106717235";
 const MODEL_CHANNEL_ID = "1477705326525681806";
 const DASHBOARD_CHANNEL_ID = "1490305746598887435";
 const WATERMARK_CHANNEL_ID = "1462586238648324146";
+const DEVIS_CHANNEL_ID = "1466817112252219558";
 
 const PHOTO_ROLE = "🎥・Prime Photographer";
 const MODEL_ROLE = "👠・Prime Model";
@@ -191,7 +192,7 @@ client.on("interactionCreate", async interaction => {
 
   const userId = interaction.user.id;
 
-  // ===== WATERMARK =====
+  // ===== WATERMARK FIX =====
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
 
     if (interaction.channelId !== WATERMARK_CHANNEL_ID)
@@ -221,35 +222,44 @@ client.on("interactionCreate", async interaction => {
         .toBuffer();
 
       const wMeta = await sharp(wMarkBuffer).metadata();
-      const margin = Math.floor(meta.width * 0.01);
 
-      let top, left;
+      const marginX = Math.floor(meta.width * 0.01);
+      const marginY = Math.floor(meta.height * 0.01);
+
+      let top = 0;
+      let left = 0;
+
       const position = (pos || "southeast").toLowerCase();
 
       switch (position) {
-        case "northwest": top = margin; left = margin; break;
-        case "northeast": top = margin; left = meta.width - wMeta.width - margin; break;
-        case "southwest": top = meta.height - wMeta.height - margin; left = margin; break;
-        case "southeast": top = meta.height - wMeta.height - margin; left = meta.width - wMeta.width - margin; break;
+        case "northwest":
+          top = marginY;
+          left = marginX;
+          break;
+        case "northeast":
+          top = marginY;
+          left = meta.width - wMeta.width - marginX;
+          break;
+        case "southwest":
+          top = meta.height - wMeta.height - marginY;
+          left = marginX;
+          break;
+        case "southeast":
+          top = meta.height - wMeta.height - marginY;
+          left = meta.width - wMeta.width - marginX;
+          break;
         case "center":
         case "centre":
-          top = Math.floor((meta.height - wMeta.height) / 2);
-          left = Math.floor((meta.width - wMeta.width) / 2);
+          top = (meta.height - wMeta.height) / 2;
+          left = (meta.width - wMeta.width) / 2;
           break;
-        case "north":
-          top = margin;
-          left = Math.floor((meta.width - wMeta.width) / 2);
-          break;
-        case "south":
-          top = meta.height - wMeta.height - margin;
-          left = Math.floor((meta.width - wMeta.width) / 2);
-          break;
-        default:
-          top = meta.height - wMeta.height - margin;
-          left = meta.width - wMeta.width - margin;
       }
 
-      const out = await img.composite([{ input: wMarkBuffer, top, left }]).toBuffer();
+      const out = await img.composite([{
+        input: wMarkBuffer,
+        top: Math.round(top),
+        left: Math.round(left)
+      }]).toBuffer();
 
       await interaction.editReply({
         files: [new AttachmentBuilder(out, { name: "prime.png" })]
@@ -261,7 +271,7 @@ client.on("interactionCreate", async interaction => {
     }
   }
 
-  // ===== DEVIS =====
+  // ===== DEVIS + SIGNATURE + ENVOI =====
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
 
     await interaction.deferReply();
@@ -294,7 +304,7 @@ client.on("interactionCreate", async interaction => {
     ctx.font = "20px Roboto";
     ctx.fillText("Prime Studio", 50, 100);
 
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(40, 140, 720, 140);
     ctx.strokeStyle = "#ddd";
     ctx.strokeRect(40, 140, 720, 140);
@@ -308,7 +318,7 @@ client.on("interactionCreate", async interaction => {
     ctx.fillText(`Téléphone : ${data.telephone}`, 60, 240);
     ctx.fillText(`Photos : ${data.photos}`, 60, 270);
 
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(40, 320, 720, 350);
     ctx.strokeRect(40, 320, 720, 350);
 
@@ -316,16 +326,17 @@ client.on("interactionCreate", async interaction => {
     ctx.font = "bold 22px Roboto";
     ctx.fillText("DESCRIPTION", 60, 350);
 
-    let y = 390, line = "";
+    let y = 390;
+    let line = "";
     ctx.font = "20px Roboto";
 
     for (let word of data.description.split(" ")) {
-      const test = line + word + " ";
-      if (ctx.measureText(test).width > 680) {
+      const testLine = line + word + " ";
+      if (ctx.measureText(testLine).width > 680) {
         ctx.fillText(line, 60, y);
         line = word + " ";
         y += 28;
-      } else line = test;
+      } else line = testLine;
     }
     ctx.fillText(line, 60, y);
 
@@ -347,7 +358,6 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  // ===== SIGNATURE =====
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
 
     const id = interaction.customId.split("_")[1];
@@ -356,9 +366,7 @@ client.on("interactionCreate", async interaction => {
     const canvas = createCanvas(800, 1000);
     const ctx = canvas.getContext('2d');
 
-    // 👉 EXACT même design + signature
-    // (copié du devis)
-
+    // REFAIT DESIGN + SIGNATURE
     ctx.fillStyle = "#f5f5f5";
     ctx.fillRect(0, 0, 800, 1000);
 
@@ -372,7 +380,7 @@ client.on("interactionCreate", async interaction => {
     ctx.font = "20px Roboto";
     ctx.fillText("Prime Studio", 50, 100);
 
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(40, 140, 720, 140);
     ctx.strokeStyle = "#ddd";
     ctx.strokeRect(40, 140, 720, 140);
@@ -386,7 +394,7 @@ client.on("interactionCreate", async interaction => {
     ctx.fillText(`Téléphone : ${data.telephone}`, 60, 240);
     ctx.fillText(`Photos : ${data.photos}`, 60, 270);
 
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(40, 320, 720, 350);
     ctx.strokeRect(40, 320, 720, 350);
 
@@ -394,16 +402,17 @@ client.on("interactionCreate", async interaction => {
     ctx.font = "bold 22px Roboto";
     ctx.fillText("DESCRIPTION", 60, 350);
 
-    let y = 390, line = "";
+    let y = 390;
+    let line = "";
     ctx.font = "20px Roboto";
 
     for (let word of data.description.split(" ")) {
-      const test = line + word + " ";
-      if (ctx.measureText(test).width > 680) {
+      const testLine = line + word + " ";
+      if (ctx.measureText(testLine).width > 680) {
         ctx.fillText(line, 60, y);
         line = word + " ";
         y += 28;
-      } else line = test;
+      } else line = testLine;
     }
     ctx.fillText(line, 60, y);
 
@@ -414,57 +423,59 @@ client.on("interactionCreate", async interaction => {
     ctx.font = "bold 32px Roboto";
     ctx.fillText(`TOTAL : $${data.prix}`, 60, 780);
 
-    // SIGNATURE
     ctx.fillStyle = "#111";
     ctx.font = "20px Roboto";
     ctx.fillText("Signature :", 60, 900);
 
     ctx.font = "28px Dancing";
-    ctx.fillText(interaction.member.nickname || interaction.user.username, 200, 900);
+    ctx.fillText(
+      interaction.member.nickname || interaction.user.username,
+      200,
+      900
+    );
 
     ctx.font = "16px Roboto";
-    ctx.fillText(`Le ${new Date().toLocaleDateString()}`, 200, 930);
+    ctx.fillText(
+      `Le ${new Date().toLocaleDateString()}`,
+      200,
+      930
+    );
 
     devisCache.delete(id);
 
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`send_mp_${id}`).setLabel("📩 MP").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`send_channel_${id}`).setLabel("📤 Channel").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`send_both_${id}`).setLabel("📤📩 Les deux").setStyle(ButtonStyle.Success)
+    );
+
     return interaction.update({
       files: [new AttachmentBuilder(canvas.toBuffer(), { name: "signed.png" })],
-      components: []
+      components: [row]
     });
   }
 
-  if (interaction.isButton() && interaction.customId.startsWith("refuse_")) {
-    await interaction.message.delete().catch(() => {});
-  }
+  // ENVOI
+  if (interaction.isButton() && interaction.customId.startsWith("send_")) {
 
-  // ===== DISPO =====
-  if (interaction.isButton()) {
+    const file = interaction.message.attachments.first();
 
-    await interaction.deferReply({ flags: 64 });
-
-    const member = interaction.member;
-    const status = interaction.customId === "dispo_on" ? "🟢" : "🔴";
-
-    if (interaction.channelId === PHOTO_CHANNEL_ID) {
-      if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) {
-        return interaction.editReply("❌ Tu n'es pas photographe.");
-      }
-      photoStatuses[userId] = status;
+    if (interaction.customId.startsWith("send_mp")) {
+      await interaction.user.send({ files: [file] });
     }
 
-    else if (interaction.channelId === MODEL_CHANNEL_ID) {
-      if (!member.roles.cache.some(r => r.name === MODEL_ROLE)) {
-        return interaction.editReply("❌ Tu n'es pas modèle.");
-      }
-      modelStatuses[userId] = status;
+    if (interaction.customId.startsWith("send_channel")) {
+      const channel = await client.channels.fetch(DEVIS_CHANNEL_ID);
+      await channel.send({ files: [file] });
     }
 
-    else return;
+    if (interaction.customId.startsWith("send_both")) {
+      const channel = await client.channels.fetch(DEVIS_CHANNEL_ID);
+      await channel.send({ files: [file] });
+      await interaction.user.send({ files: [file] });
+    }
 
-    saveStatuses({ photoStatuses, modelStatuses });
-    await refreshAll();
-
-    return interaction.editReply("✅ Statut mis à jour");
+    await interaction.reply({ content: "✅ Envoyé !", flags: 64 });
   }
 
 });
