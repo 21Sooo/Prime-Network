@@ -8,10 +8,9 @@ const {
   AttachmentBuilder
 } = require('discord.js');
 
-const { createCanvas, registerFont, loadImage } = require('canvas');
+const { createCanvas, registerFont } = require('canvas');
 const sharp = require("sharp");
 const fs = require("fs");
-const https = require("https");
 const path = require("path");
 
 const TOKEN = process.env.TOKEN;
@@ -28,7 +27,7 @@ const MODEL_ROLE = "👠・Prime Model";
 // --- MÉMOIRE TEMPORAIRE ---
 const devisCache = new Map();
 
-// --- ENREGISTREMENT DES POLICES ---
+// --- FONTS ---
 const fontPath = path.join(__dirname, 'Roboto-Regular.ttf');
 const sigPath = path.join(__dirname, 'DancingScript.ttf');
 
@@ -39,7 +38,7 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// --- GESTION DES FICHIERS DE DONNÉES ---
+// --- FICHIERS ---
 const panelFile = "./panels.json";
 const statusFile = "./statuses.json";
 
@@ -53,35 +52,31 @@ const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data,
 
 let { photoStatuses, modelStatuses } = getStatuses();
 
-// --- GÉNÉRATEUR SUR PAGE BLANCHE (VERSION LISIBILITÉ AMÉLIORÉE) ---
+// --- DEVIS ---
 async function createPrimeDevis(data, signatureName = null) {
   const canvas = createCanvas(800, 1000);
   const ctx = canvas.getContext('2d');
 
-  // Fond Blanc
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, 800, 1000);
 
-  // En-tête (Rectangle Noir)
   ctx.fillStyle = "#000000";
   ctx.fillRect(0, 0, 800, 160);
-  
+
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 50px sans-serif"; 
+  ctx.font = "bold 50px sans-serif";
   ctx.fillText("PRIME NETWORK", 50, 75);
   ctx.font = "24px sans-serif";
   ctx.fillText("DEVIS & FACTURATION OFFICIELLE", 50, 120);
 
-  // Contenu (Noir)
   ctx.fillStyle = "#000000";
   ctx.font = "bold 28px sans-serif";
   ctx.fillText(`CLIENT : ${data.client || "Inconnu"}`, 50, 230);
-  
+
   ctx.font = "22px sans-serif";
   ctx.fillText(`Téléphone : ${data.telephone || "Non renseigné"}`, 50, 280);
   ctx.fillText(`Prestation : ${data.photos || 0} photo(s)`, 50, 320);
 
-  // Ligne de séparation
   ctx.strokeStyle = "#000000";
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -89,43 +84,43 @@ async function createPrimeDevis(data, signatureName = null) {
   ctx.lineTo(750, 360);
   ctx.stroke();
 
-  // Zone Description
   ctx.font = "bold 24px sans-serif";
   ctx.fillText("DESCRIPTION DÉTAILLÉE :", 50, 410);
-  
+
   ctx.font = "20px sans-serif";
   const words = (data.description || "").split(' ');
   let line = '';
   let yDesc = 450;
-  for(let n = 0; n < words.length; n++) {
+  for (let n = 0; n < words.length; n++) {
     let testLine = line + words[n] + ' ';
     if (ctx.measureText(testLine).width > 680 && n > 0) {
       ctx.fillText(line, 50, yDesc);
       line = words[n] + ' ';
-      yDesc += 35; 
-    } else { line = testLine; }
+      yDesc += 35;
+    } else {
+      line = testLine;
+    }
   }
   ctx.fillText(line, 50, yDesc);
 
-  // Prix
+  // 💲 FIX DEVISE
   ctx.font = "bold 35px sans-serif";
-  ctx.fillText(`TOTAL À RÉGLER : ${data.prix || 0} €`, 50, 850);
+  ctx.fillText(`TOTAL À RÉGLER : $${data.prix || 0}`, 50, 850);
 
-  // Signature
   if (signatureName) {
     ctx.font = "55px 'SignatureFont', cursive";
-    ctx.fillStyle = "#1a237e"; 
+    ctx.fillStyle = "#1a237e";
     ctx.fillText(signatureName, 450, 920);
-    
+
     ctx.fillStyle = "#000000";
     ctx.font = "italic 16px sans-serif";
-    ctx.fillText("Signé numériquement le " + new Date().toLocaleDateString(), 450, 950);
+    ctx.fillText("Signé le " + new Date().toLocaleDateString(), 450, 950);
   }
 
   return canvas.toBuffer();
 }
 
-// --- LOGIQUE PLANNING ---
+// --- PLANNING ---
 const dispoButtons = new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId("dispo_on").setLabel("🟢 Disponible").setStyle(ButtonStyle.Success),
   new ButtonBuilder().setCustomId("dispo_off").setLabel("🔴 Indisponible").setStyle(ButtonStyle.Danger)
@@ -144,7 +139,12 @@ function generateModelEmbed() {
 function generateDashboardEmbed() {
   const pA = Object.values(photoStatuses).filter(s => s === "🟢").length;
   const mA = Object.values(modelStatuses).filter(s => s === "🟢").length;
-  return new EmbedBuilder().setTitle("📊 Dashboard Global").setColor("#2f3136").addFields({name:"📸 Photos", value:`${pA}`, inline:true}, {name:"👠 Modèles", value:`${mA}`, inline:true}).setTimestamp();
+  return new EmbedBuilder().setTitle("📊 Dashboard Global").setColor("#2f3136")
+    .addFields(
+      { name:"📸 Photos", value:`${pA}`, inline:true },
+      { name:"👠 Modèles", value:`${mA}`, inline:true }
+    )
+    .setTimestamp();
 }
 
 async function updatePanel(channelId, embed, key) {
@@ -171,20 +171,26 @@ async function refreshAll() {
   await updatePanel(DASHBOARD_CHANNEL_ID, generateDashboardEmbed(), "dashboardMessageId");
 }
 
-// --- INTERACTIONS ---
+// --- READY ---
 client.once("ready", async () => {
-  console.log(`✅ Bot Prime Network en ligne (Mode Lisibilité HD)`);
+  console.log(`✅ Bot Prime Network en ligne`);
   await refreshAll();
 });
 
+// --- INTERACTIONS ---
 client.on("interactionCreate", async interaction => {
+
   const member = interaction.member;
   const username = member.nickname || interaction.user.username;
 
+  // --- DEVIS ---
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
-    if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) return interaction.reply({ content: "❌ Réservé aux Photographes.", flags: 64 });
-    
+
+    if (!member.roles.cache.some(r => r.name === PHOTO_ROLE))
+      return interaction.reply({ content: "❌ Réservé aux Photographes.", flags: 64 });
+
     await interaction.deferReply();
+
     const data = {
       client: interaction.options.getString('client'),
       telephone: interaction.options.getString('telephone'),
@@ -198,36 +204,42 @@ client.on("interactionCreate", async interaction => {
     devisCache.set(devisId, data);
 
     const buffer = await createPrimeDevis(data);
+
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`sign_${devisId}`).setLabel('Signer').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`sign_devis_${devisId}`).setLabel('Signer').setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId('refuse').setLabel('Refuser').setStyle(ButtonStyle.Danger)
     );
 
-    return interaction.editReply({ 
-        content: `📄 Nouveau devis généré pour **${data.client}**`, 
-        files: [new AttachmentBuilder(buffer, { name: 'devis.png' })], 
-        components: [row] 
+    return interaction.editReply({
+      content: `📄 Nouveau devis pour **${data.client}**`,
+      files: [new AttachmentBuilder(buffer, { name: 'devis.png' })],
+      components: [row]
     });
   }
 
+  // --- BOUTONS ---
   if (interaction.isButton()) {
+
     if (interaction.customId.startsWith("sign_devis_")) {
-      const devisId = interaction.customId.replace("sign_", "");
+      const devisId = interaction.customId.replace("sign_devis_", "");
       const cachedData = devisCache.get(devisId);
 
-      if (!cachedData) return interaction.reply({ content: "❌ Erreur : Ce devis a expiré en mémoire.", flags: 64 });
+      if (!cachedData)
+        return interaction.reply({ content: "❌ Devis expiré.", flags: 64 });
 
       const buffer = await createPrimeDevis(cachedData, username);
-      await interaction.update({ 
-        content: `✅ Devis accepté et signé par **${username}**`, 
-        files: [new AttachmentBuilder(buffer, { name: 'facture_signee.png' })], 
-        components: [] 
+
+      await interaction.update({
+        content: `✅ Devis signé par **${username}**`,
+        files: [new AttachmentBuilder(buffer, { name: 'facture_signee.png' })],
+        components: []
       });
-      
+
       return devisCache.delete(devisId);
     }
-    
-    if (interaction.customId === "refuse") return interaction.update({ content: "❌ Le client a refusé le devis.", components: [], files: [] });
+
+    if (interaction.customId === "refuse")
+      return interaction.update({ content: "❌ Devis refusé.", components: [], files: [] });
 
     if (interaction.customId.startsWith("dispo_")) {
       const target = interaction.channelId === PHOTO_CHANNEL_ID ? photoStatuses : modelStatuses;
@@ -238,30 +250,52 @@ client.on("interactionCreate", async interaction => {
     }
   }
 
+  // --- WATERMARK FIX ---
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
-    if (interaction.channelId !== WATERMARK_CHANNEL_ID) return interaction.reply({ content: "❌ Mauvais salon.", flags: 64 });
+
+    if (interaction.channelId !== WATERMARK_CHANNEL_ID)
+      return interaction.reply({ content: "❌ Mauvais salon.", flags: 64 });
+
     await interaction.deferReply();
+
     const attach = interaction.options.getAttachment("image");
-    const pos = interaction.options.getString("position") || "southeast";
+
     const logoChoice = interaction.options.getString("logo") || "1";
-    const watermarkFile = logoChoice === "2" ? "watermark2.png" : (logoChoice === "3" ? "watermark3.png" : "watermark.png");
-    
-    https.get(attach.url, (res) => {
-      const chunks = [];
-      res.on("data", (c) => chunks.push(c));
-      res.on("end", async () => {
-        try {
-          const input = Buffer.concat(chunks);
-          const img = sharp(input);
-          const meta = await img.metadata();
-          const wMark = await sharp(path.join(__dirname, watermarkFile)).resize({ width: Math.floor(meta.width * 0.15) }).toBuffer();
-          const out = await img.composite([{ input: wMark, gravity: pos }]).toBuffer();
-          await interaction.editReply({ files: [new AttachmentBuilder(out, { name: 'prime_photo.png' })] });
-        } catch (e) {
-          await interaction.editReply("❌ Erreur traitement image.");
-        }
+    const watermarkFile =
+      logoChoice === "2" ? "watermark2.png" :
+      logoChoice === "3" ? "watermark3.png" :
+      "watermark.png";
+
+    const validPositions = ["north","south","east","west","northeast","northwest","southeast","southwest","center"];
+    const posInput = interaction.options.getString("position");
+    const pos = validPositions.includes(posInput) ? posInput : "southeast";
+
+    try {
+      const response = await fetch(attach.url);
+      const arrayBuffer = await response.arrayBuffer();
+      const input = Buffer.from(arrayBuffer);
+
+      const img = sharp(input);
+      const meta = await img.metadata();
+
+      const watermarkPath = path.join(__dirname, watermarkFile);
+
+      const wMark = await sharp(watermarkPath)
+        .resize({ width: Math.floor(meta.width * 0.15) })
+        .toBuffer();
+
+      const out = await img
+        .composite([{ input: wMark, gravity: pos }])
+        .toBuffer();
+
+      await interaction.editReply({
+        files: [new AttachmentBuilder(out, { name: 'prime_photo.png' })]
       });
-    });
+
+    } catch (e) {
+      console.error(e);
+      await interaction.editReply("❌ Erreur traitement image.");
+    }
   }
 });
 
