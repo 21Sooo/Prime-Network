@@ -1,4 +1,3 @@
-// ================= IMPORTS =================
 const {
   Client,
   GatewayIntentBits,
@@ -9,12 +8,11 @@ const {
   AttachmentBuilder
 } = require('discord.js');
 
-const { createCanvas, registerFont } = require('canvas');
+const { createCanvas } = require('canvas');
 const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
 
-// ================= CONFIG =================
 const TOKEN = process.env.TOKEN;
 const GUILD_ID = "1403500050067230730";
 
@@ -26,10 +24,12 @@ const WATERMARK_CHANNEL_ID = "1462586238648324146";
 const PHOTO_ROLE = "🎥・Prime Photographer";
 const MODEL_ROLE = "👠・Prime Model";
 
-// ================= FILES =================
 const panelFile = "./panels.json";
 const statusFile = "./statuses.json";
 
+const devisCache = new Map();
+
+// ================= FILE INIT =================
 if (!fs.existsSync(panelFile)) {
   fs.writeFileSync(panelFile, JSON.stringify({
     photoMessageId: null,
@@ -46,10 +46,10 @@ if (!fs.existsSync(statusFile)) {
 }
 
 const getPanels = () => JSON.parse(fs.readFileSync(panelFile));
-const savePanels = (data) => fs.writeFileSync(panelFile, JSON.stringify(data, null, 2));
+const savePanels = (d) => fs.writeFileSync(panelFile, JSON.stringify(d, null, 2));
 
 const getStatuses = () => JSON.parse(fs.readFileSync(statusFile));
-const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data, null, 2));
+const saveStatuses = (d) => fs.writeFileSync(statusFile, JSON.stringify(d, null, 2));
 
 let { photoStatuses, modelStatuses } = getStatuses();
 
@@ -128,6 +128,40 @@ async function refreshAll() {
   saveStatuses({ photoStatuses, modelStatuses });
 }
 
+// ================= READY (PERSISTANT) =================
+client.once("ready", async () => {
+  console.log("✅ Bot prêt");
+
+  const panels = getPanels();
+  const guild = await client.guilds.fetch(GUILD_ID);
+
+  try {
+    if (panels.photoMessageId) {
+      const ch = await client.channels.fetch(PHOTO_CHANNEL_ID);
+      const msg = await ch.messages.fetch(panels.photoMessageId);
+      await msg.edit({ embeds: [await generateEmbed(guild, photoStatuses, "📸 Photographes", "#00bfff")], components: [buttons] });
+    }
+  } catch { panels.photoMessageId = null; }
+
+  try {
+    if (panels.modelMessageId) {
+      const ch = await client.channels.fetch(MODEL_CHANNEL_ID);
+      const msg = await ch.messages.fetch(panels.modelMessageId);
+      await msg.edit({ embeds: [await generateEmbed(guild, modelStatuses, "👠 Modèles", "#ff69b4")], components: [buttons] });
+    }
+  } catch { panels.modelMessageId = null; }
+
+  try {
+    if (panels.dashboardMessageId) {
+      const ch = await client.channels.fetch(DASHBOARD_CHANNEL_ID);
+      const msg = await ch.messages.fetch(panels.dashboardMessageId);
+      await msg.edit({ embeds: [generateDashboard()] });
+    }
+  } catch { panels.dashboardMessageId = null; }
+
+  savePanels(panels);
+});
+
 // ================= AUTO RECREATE =================
 client.on("messageDelete", async (msg) => {
   const panels = getPanels();
@@ -139,12 +173,6 @@ client.on("messageDelete", async (msg) => {
   ) {
     await refreshAll();
   }
-});
-
-// ================= READY =================
-client.once("ready", async () => {
-  console.log("✅ Bot prêt");
-  await refreshAll();
 });
 
 // ================= INTERACTIONS =================
@@ -191,23 +219,132 @@ client.on("interactionCreate", async interaction => {
 
     await interaction.deferReply();
 
-    const canvas = createCanvas(800, 1000);
+    const data = {
+      client: interaction.options.getString("client"),
+      telephone: interaction.options.getString("telephone"),
+      photographe: interaction.options.getString("photographe"),
+      photos: interaction.options.getInteger("photos"),
+      description: interaction.options.getString("description"),
+      prix: interaction.options.getInteger("prix")
+    };
+
+    const id = Date.now().toString();
+    devisCache.set(id, data);
+
+    const canvas = createCanvas(900, 1100);
     const ctx = canvas.getContext("2d");
 
     ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, 800, 1000);
+    ctx.fillRect(0, 0, 900, 1100);
 
     ctx.fillStyle = "#000";
-    ctx.font = "30px sans-serif";
+    ctx.font = "bold 40px sans-serif";
+    ctx.fillText("DEVIS", 50, 80);
 
-    ctx.fillText(`Client: ${interaction.options.getString("client")}`, 50, 100);
-    ctx.fillText(`Téléphone: ${interaction.options.getString("telephone")}`, 50, 150);
-    ctx.fillText(`Photos: ${interaction.options.getInteger("photos")}`, 50, 200);
-    ctx.fillText(`Prix: $${interaction.options.getInteger("prix")}`, 50, 250);
+    ctx.font = "20px sans-serif";
+    ctx.fillText(`Date : ${new Date().toLocaleDateString()}`, 50, 120);
+
+    ctx.beginPath();
+    ctx.moveTo(50, 150);
+    ctx.lineTo(850, 150);
+    ctx.stroke();
+
+    ctx.font = "bold 25px sans-serif";
+    ctx.fillText("CLIENT", 50, 200);
+
+    ctx.font = "20px sans-serif";
+    ctx.fillText(`Nom : ${data.client}`, 50, 240);
+    ctx.fillText(`Téléphone : ${data.telephone}`, 50, 270);
+
+    ctx.font = "bold 25px sans-serif";
+    ctx.fillText("PRESTATION", 50, 340);
+
+    ctx.font = "20px sans-serif";
+    ctx.fillText(`Photographe : ${data.photographe}`, 50, 380);
+    ctx.fillText(`Photos : ${data.photos}`, 50, 410);
+    ctx.fillText(`Description :`, 50, 440);
+
+    let y = 470;
+    let line = "";
+    for (let word of data.description.split(" ")) {
+      const test = line + word + " ";
+      if (ctx.measureText(test).width > 750) {
+        ctx.fillText(line, 50, y);
+        line = word + " ";
+        y += 30;
+      } else {
+        line = test;
+      }
+    }
+    ctx.fillText(line, 50, y);
+
+    ctx.font = "bold 30px sans-serif";
+    ctx.fillText(`TOTAL : $${data.prix}`, 50, 700);
+
+    ctx.fillText("Signature client :", 50, 850);
+    ctx.strokeRect(50, 870, 300, 100);
+
+    const buffer = canvas.toBuffer();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`sign_${id}`).setLabel("Signer").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`refuse_${id}`).setLabel("Refuser").setStyle(ButtonStyle.Danger)
+    );
 
     return interaction.editReply({
-      files: [new AttachmentBuilder(canvas.toBuffer(), { name: "devis.png" })]
+      files: [new AttachmentBuilder(buffer, { name: "devis.png" })],
+      components: [row]
     });
+  }
+
+  // ---------- SIGNATURE ----------
+  if (interaction.isButton()) {
+
+    if (interaction.customId.startsWith("sign_")) {
+
+      const id = interaction.customId.split("_")[1];
+      const devis = devisCache.get(id);
+
+      if (!devis) return interaction.reply({ content: "❌ Introuvable", flags: 64 });
+
+      const name = interaction.member.nickname || interaction.user.username;
+      const date = new Date().toLocaleDateString();
+
+      const canvas = createCanvas(900, 1100);
+      const ctx = canvas.getContext("2d");
+
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, 900, 1100);
+
+      ctx.fillStyle = "#000";
+      ctx.font = "bold 40px sans-serif";
+      ctx.fillText("DEVIS SIGNÉ", 50, 80);
+
+      ctx.font = "20px sans-serif";
+      ctx.fillText(`Signé le : ${date}`, 50, 120);
+
+      ctx.fillText(`Client : ${devis.client}`, 50, 200);
+      ctx.fillText(`Photographe : ${devis.photographe}`, 50, 240);
+      ctx.fillText(`TOTAL : $${devis.prix}`, 50, 300);
+
+      ctx.font = "italic 30px sans-serif";
+      ctx.fillText(name, 60, 900);
+
+      const buffer = canvas.toBuffer();
+
+      devisCache.delete(id);
+
+      return interaction.update({
+        content: `✅ Signé par ${name}`,
+        files: [new AttachmentBuilder(buffer, { name: "signed.png" })],
+        components: []
+      });
+    }
+
+    if (interaction.customId.startsWith("refuse_")) {
+      await interaction.message.delete().catch(() => {});
+      return;
+    }
   }
 
   // ---------- PING ----------
@@ -232,7 +369,7 @@ client.on("interactionCreate", async interaction => {
       return interaction.reply({ content: build(modelStatuses, "🔴") || "❌ Aucun" });
   }
 
-  // ---------- BOUTONS ----------
+  // ---------- BOUTONS DISPO ----------
   if (interaction.isButton()) {
 
     const member = interaction.member;
@@ -253,8 +390,9 @@ client.on("interactionCreate", async interaction => {
     }
 
     await refreshAll();
-    return interaction.reply({ content: "✅ MAJ", flags: 64 });
+    return interaction.reply({ content: "✅ Statut mis à jour", flags: 64 });
   }
+
 });
 
 client.login(TOKEN);
