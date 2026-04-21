@@ -16,13 +16,11 @@ const path = require("path");
 const TOKEN = process.env.TOKEN;
 const GUILD_ID = "1403500050067230730";
 
-// ✅ FONTS FIX
+// FONTS
 try {
   registerFont(path.join(__dirname, 'DancingScript.ttf'), { family: 'Dancing' });
   registerFont(path.join(__dirname, 'Roboto-Regular.ttf'), { family: 'Roboto' });
-} catch (e) {
-  console.log("⚠️ Fonts non chargées");
-}
+} catch {}
 
 // CONFIG
 const PHOTO_CHANNEL_ID = "1403500792106717235";
@@ -203,25 +201,13 @@ client.on("interactionCreate", async interaction => {
     const pos = interaction.options.getString("position");
     const logo = interaction.options.getString("logo") || "1";
 
-    const map = {
-      "center": "centre",
-      "bottom-right": "southeast",
-      "bottom-left": "southwest",
-      "top-right": "northeast",
-      "top-left": "northwest",
-      "top-center": "north",
-      "bottom-center": "south"
-    };
-
-    const gravity = map[pos?.toLowerCase()] || "southeast";
-
     try {
       const buffer = Buffer.from(await (await fetch(attach.url)).arrayBuffer());
 
       const img = sharp(buffer);
       const meta = await img.metadata();
 
-      const wMark = await sharp(path.join(__dirname,
+      const wMarkBuffer = await sharp(path.join(__dirname,
         logo === "2" ? "watermark2.png" :
         logo === "3" ? "watermark3.png" :
         "watermark.png"
@@ -229,10 +215,40 @@ client.on("interactionCreate", async interaction => {
         .resize({ width: Math.floor(meta.width * 0.06) })
         .toBuffer();
 
+      const wMeta = await sharp(wMarkBuffer).metadata();
+
+      const margin = 20;
+      let top = 0;
+      let left = 0;
+
+      switch (pos) {
+        case "top-left":
+          top = margin; left = margin; break;
+        case "top-right":
+          top = margin; left = meta.width - wMeta.width - margin; break;
+        case "bottom-left":
+          top = meta.height - wMeta.height - margin; left = margin; break;
+        case "bottom-right":
+          top = meta.height - wMeta.height - margin;
+          left = meta.width - wMeta.width - margin; break;
+        case "center":
+          top = (meta.height - wMeta.height) / 2;
+          left = (meta.width - wMeta.width) / 2; break;
+        case "top-center":
+          top = margin;
+          left = (meta.width - wMeta.width) / 2; break;
+        case "bottom-center":
+          top = meta.height - wMeta.height - margin;
+          left = (meta.width - wMeta.width) / 2; break;
+        default:
+          top = meta.height - wMeta.height - margin;
+          left = meta.width - wMeta.width - margin;
+      }
+
       const out = await img.composite([{
-        input: wMark,
-        gravity,
-        opacity: 0.8
+        input: wMarkBuffer,
+        top: Math.round(top),
+        left: Math.round(left)
       }]).toBuffer();
 
       await interaction.editReply({
@@ -264,16 +280,36 @@ client.on("interactionCreate", async interaction => {
     const canvas = createCanvas(800, 1000);
     const ctx = canvas.getContext('2d');
 
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = "#f5f5f5";
     ctx.fillRect(0, 0, 800, 1000);
 
-    ctx.fillStyle = "#000";
-    ctx.font = "30px Roboto";
+    ctx.fillStyle = "#111";
+    ctx.font = "bold 40px Roboto";
+    ctx.fillText("DEVIS", 320, 80);
 
-    ctx.fillText(`Client: ${data.client}`, 50, 100);
-    ctx.fillText(`Téléphone: ${data.telephone}`, 50, 150);
-    ctx.fillText(`Photos: ${data.photos}`, 50, 200);
-    ctx.fillText(`Prix: $${data.prix}`, 50, 250);
+    ctx.font = "24px Roboto";
+    ctx.fillText(`Client : ${data.client}`, 50, 150);
+    ctx.fillText(`Téléphone : ${data.telephone}`, 50, 190);
+    ctx.fillText(`Photos : ${data.photos}`, 50, 230);
+
+    ctx.fillText("Description :", 50, 300);
+
+    const words = data.description.split(" ");
+    let line = "";
+    let y = 340;
+
+    for (let word of words) {
+      const testLine = line + word + " ";
+      if (ctx.measureText(testLine).width > 700) {
+        ctx.fillText(line, 50, y);
+        line = word + " ";
+        y += 30;
+      } else line = testLine;
+    }
+    ctx.fillText(line, 50, y);
+
+    ctx.font = "bold 30px Roboto";
+    ctx.fillText(`TOTAL : $${data.prix}`, 50, 800);
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`sign_${id}`).setLabel("Signer").setStyle(ButtonStyle.Success),
@@ -290,25 +326,55 @@ client.on("interactionCreate", async interaction => {
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
 
     const id = interaction.customId.split("_")[1];
-    const devis = devisCache.get(id);
+    const data = devisCache.get(id);
 
     const canvas = createCanvas(800, 1000);
     const ctx = canvas.getContext('2d');
 
-    ctx.fillStyle = "#fff";
+    // RECRÉE LE DEVIS COMPLET
+    ctx.fillStyle = "#f5f5f5";
     ctx.fillRect(0, 0, 800, 1000);
 
-    ctx.fillStyle = "#000";
-    ctx.font = "30px Roboto";
+    ctx.fillStyle = "#111";
+    ctx.font = "bold 40px Roboto";
+    ctx.fillText("DEVIS", 320, 80);
 
-    ctx.fillText(`Client: ${devis.client}`, 50, 100);
-    ctx.fillText(`Prix: $${devis.prix}`, 50, 200);
+    ctx.font = "24px Roboto";
+    ctx.fillText(`Client : ${data.client}`, 50, 150);
+    ctx.fillText(`Téléphone : ${data.telephone}`, 50, 190);
+    ctx.fillText(`Photos : ${data.photos}`, 50, 230);
 
+    ctx.fillText("Description :", 50, 300);
+
+    let y = 340;
+    let line = "";
+    for (let word of data.description.split(" ")) {
+      const testLine = line + word + " ";
+      if (ctx.measureText(testLine).width > 700) {
+        ctx.fillText(line, 50, y);
+        line = word + " ";
+        y += 30;
+      } else line = testLine;
+    }
+    ctx.fillText(line, 50, y);
+
+    ctx.font = "bold 30px Roboto";
+    ctx.fillText(`TOTAL : $${data.prix}`, 50, 800);
+
+    // SIGNATURE AJOUTÉE
     ctx.font = "28px Dancing";
-    ctx.fillText(interaction.member.nickname || interaction.user.username, 50, 850);
+    ctx.fillText(
+      interaction.member.nickname || interaction.user.username,
+      500,
+      900
+    );
 
-    ctx.font = "20px Roboto";
-    ctx.fillText(`Signé le ${new Date().toLocaleDateString()}`, 50, 900);
+    ctx.font = "18px Roboto";
+    ctx.fillText(
+      `Signé le ${new Date().toLocaleDateString()}`,
+      500,
+      930
+    );
 
     devisCache.delete(id);
 
@@ -322,7 +388,7 @@ client.on("interactionCreate", async interaction => {
     await interaction.message.delete().catch(() => {});
   }
 
-  // ===== DISPO FIX =====
+  // DISPO (INCHANGÉ)
   if (interaction.isButton()) {
 
     await interaction.deferReply({ flags: 64 });
@@ -331,20 +397,16 @@ client.on("interactionCreate", async interaction => {
     const status = interaction.customId === "dispo_on" ? "🟢" : "🔴";
 
     if (interaction.channelId === PHOTO_CHANNEL_ID) {
-
       if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) {
         return interaction.editReply("❌ Tu n'es pas photographe.");
       }
-
       photoStatuses[userId] = status;
     }
 
     else if (interaction.channelId === MODEL_CHANNEL_ID) {
-
       if (!member.roles.cache.some(r => r.name === MODEL_ROLE)) {
         return interaction.editReply("❌ Tu n'es pas modèle.");
       }
-
       modelStatuses[userId] = status;
     }
 
