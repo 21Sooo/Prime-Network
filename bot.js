@@ -191,90 +191,105 @@ client.on("interactionCreate", async interaction => {
 
   const userId = interaction.user.id;
 
-  // ===== WATERMARK FIX FINAL =====
-  if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
+  // ===== WATERMARK FIX FINAL PROPRE =====
+if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
 
-    if (interaction.channelId !== WATERMARK_CHANNEL_ID)
-      return interaction.reply({ content: "❌ Mauvais salon", flags: 64 });
+  if (interaction.channelId !== WATERMARK_CHANNEL_ID)
+    return interaction.reply({ content: "❌ Mauvais salon", flags: 64 });
 
-    await interaction.deferReply();
+  await interaction.deferReply();
 
-    const attach = interaction.options.getAttachment("image");
-    const pos = interaction.options.getString("position");
-    const logo = interaction.options.getString("logo") || "1";
+  const attach = interaction.options.getAttachment("image");
+  const pos = interaction.options.getString("position");
+  const logo = interaction.options.getString("logo") || "1";
 
-    try {
-      const buffer = Buffer.from(await (await fetch(attach.url)).arrayBuffer());
+  try {
+    const buffer = Buffer.from(await (await fetch(attach.url)).arrayBuffer());
 
-      const img = sharp(buffer);
-      const meta = await img.metadata();
+    const img = sharp(buffer);
+    const meta = await img.metadata();
 
-      const wMarkBuffer = await sharp(path.join(__dirname,
-        logo === "2" ? "watermark2.png" :
-        logo === "3" ? "watermark3.png" :
-        "watermark.png"
-      ))
-        .resize({ width: Math.floor(meta.width * 0.06) })
-        .toBuffer();
+    // 🔥 taille plus propre
+    const logoWidth = Math.floor(meta.width * 0.035);
 
-      const wMeta = await sharp(wMarkBuffer).metadata();
+    const wMarkBuffer = await sharp(path.join(__dirname,
+      logo === "2" ? "watermark2.png" :
+      logo === "3" ? "watermark3.png" :
+      "watermark.png"
+    ))
+      .resize({ width: logoWidth })
+      .png()
+      .toBuffer();
 
-      const margin = 20;
-      let top = 0;
-      let left = 0;
+    const wMeta = await sharp(wMarkBuffer).metadata();
 
-      const position = pos || "southeast";
+    // 🔥 marge adaptative
+    const margin = Math.floor(meta.width * 0.015);
 
-      switch (position) {
-        case "northwest":
-          top = margin;
-          left = margin;
-          break;
-        case "northeast":
-          top = margin;
-          left = meta.width - wMeta.width - margin;
-          break;
-        case "southwest":
-          top = meta.height - wMeta.height - margin;
-          left = margin;
-          break;
-        case "southeast":
-          top = meta.height - wMeta.height - margin;
-          left = meta.width - wMeta.width - margin;
-          break;
-        case "center":
-        case "centre":
-          top = (meta.height - wMeta.height) / 2;
-          left = (meta.width - wMeta.width) / 2;
-          break;
-        case "north":
-          top = margin;
-          left = (meta.width - wMeta.width) / 2;
-          break;
-        case "south":
-          top = meta.height - wMeta.height - margin;
-          left = (meta.width - wMeta.width) / 2;
-          break;
-        default:
-          top = meta.height - wMeta.height - margin;
-          left = meta.width - wMeta.width - margin;
-      }
+    let top = 0;
+    let left = 0;
 
-      const out = await img.composite([{
-        input: wMarkBuffer,
-        top: Math.round(top),
-        left: Math.round(left)
-      }]).toBuffer();
+    const position = (pos || "southeast").toLowerCase();
 
-      await interaction.editReply({
-        files: [new AttachmentBuilder(out, { name: "prime.png" })]
-      });
+    switch (position) {
 
-    } catch (e) {
-      console.error(e);
-      await interaction.editReply("❌ Erreur watermark");
+      case "northwest":
+        top = margin;
+        left = margin;
+        break;
+
+      case "northeast":
+        top = margin;
+        left = meta.width - wMeta.width - margin;
+        break;
+
+      case "southwest":
+        top = meta.height - wMeta.height - margin;
+        left = margin;
+        break;
+
+      case "southeast":
+        top = meta.height - wMeta.height - margin;
+        left = meta.width - wMeta.width - margin;
+        break;
+
+      case "center":
+      case "centre":
+        top = Math.floor((meta.height - wMeta.height) / 2);
+        left = Math.floor((meta.width - wMeta.width) / 2);
+        break;
+
+      case "north":
+        top = margin;
+        left = Math.floor((meta.width - wMeta.width) / 2);
+        break;
+
+      case "south":
+        top = meta.height - wMeta.height - margin;
+        left = Math.floor((meta.width - wMeta.width) / 2);
+        break;
+
+      default:
+        top = meta.height - wMeta.height - margin;
+        left = meta.width - wMeta.width - margin;
     }
+
+    const out = await img.composite([{
+      input: wMarkBuffer,
+      top,
+      left,
+      blend: "over"
+    }]).toBuffer();
+
+    await interaction.editReply({
+      files: [new AttachmentBuilder(out, { name: "prime.png" })]
+    });
+
+  } catch (e) {
+    console.error(e);
+    await interaction.editReply("❌ Erreur watermark");
   }
+}
 
   // ===== DEVIS (TON DESIGN CONSERVÉ) =====
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
