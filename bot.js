@@ -13,6 +13,8 @@ const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
 
+const fetch = global.fetch; // ✅ FIX IMPORTANT
+
 const TOKEN = process.env.TOKEN;
 const GUILD_ID = "1403500050067230730";
 
@@ -189,7 +191,7 @@ client.on("interactionCreate", async interaction => {
 
   const userId = interaction.user.id;
 
-  // ===== WATERMARK FIX =====
+  // ===== WATERMARK FIX FINAL =====
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
 
     if (interaction.channelId !== WATERMARK_CHANNEL_ID)
@@ -221,40 +223,42 @@ client.on("interactionCreate", async interaction => {
       let top = 0;
       let left = 0;
 
-      switch (pos) {
-        const position = pos || "southeast";
+      const position = pos || "southeast";
 
-switch (position) {
-  case "northwest":
-    top = margin;
-    left = margin;
-    break;
-  case "northeast":
-    top = margin;
-    left = meta.width - wMeta.width - margin;
-    break;
-  case "southwest":
-    top = meta.height - wMeta.height - margin;
-    left = margin;
-    break;
-  case "southeast":
-    top = meta.height - wMeta.height - margin;
-    left = meta.width - wMeta.width - margin;
-    break;
-  case "center":
-  case "centre":
-    top = (meta.height - wMeta.height) / 2;
-    left = (meta.width - wMeta.width) / 2;
-    break;
-  case "north":
-    top = margin;
-    left = (meta.width - wMeta.width) / 2;
-    break;
-  case "south":
-    top = meta.height - wMeta.height - margin;
-    left = (meta.width - wMeta.width) / 2;
-    break;
-}
+      switch (position) {
+        case "northwest":
+          top = margin;
+          left = margin;
+          break;
+        case "northeast":
+          top = margin;
+          left = meta.width - wMeta.width - margin;
+          break;
+        case "southwest":
+          top = meta.height - wMeta.height - margin;
+          left = margin;
+          break;
+        case "southeast":
+          top = meta.height - wMeta.height - margin;
+          left = meta.width - wMeta.width - margin;
+          break;
+        case "center":
+        case "centre":
+          top = (meta.height - wMeta.height) / 2;
+          left = (meta.width - wMeta.width) / 2;
+          break;
+        case "north":
+          top = margin;
+          left = (meta.width - wMeta.width) / 2;
+          break;
+        case "south":
+          top = meta.height - wMeta.height - margin;
+          left = (meta.width - wMeta.width) / 2;
+          break;
+        default:
+          top = meta.height - wMeta.height - margin;
+          left = meta.width - wMeta.width - margin;
+      }
 
       const out = await img.composite([{
         input: wMarkBuffer,
@@ -272,7 +276,7 @@ switch (position) {
     }
   }
 
-  // ===== DEVIS FIX =====
+  // ===== DEVIS (TON DESIGN CONSERVÉ) =====
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
 
     await interaction.deferReply();
@@ -333,7 +337,7 @@ switch (position) {
     });
   }
 
-  // SIGNATURE FIX
+  // ===== SIGNATURE =====
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
 
     const id = interaction.customId.split("_")[1];
@@ -342,7 +346,6 @@ switch (position) {
     const canvas = createCanvas(800, 1000);
     const ctx = canvas.getContext('2d');
 
-    // RECRÉE LE DEVIS COMPLET
     ctx.fillStyle = "#f5f5f5";
     ctx.fillRect(0, 0, 800, 1000);
 
@@ -372,7 +375,6 @@ switch (position) {
     ctx.font = "bold 30px Roboto";
     ctx.fillText(`TOTAL : $${data.prix}`, 50, 800);
 
-    // SIGNATURE AJOUTÉE
     ctx.font = "28px Dancing";
     ctx.fillText(
       interaction.member.nickname || interaction.user.username,
@@ -399,7 +401,7 @@ switch (position) {
     await interaction.message.delete().catch(() => {});
   }
 
-  // DISPO (INCHANGÉ)
+  // ===== DISPO =====
   if (interaction.isButton()) {
 
     await interaction.deferReply({ flags: 64 });
