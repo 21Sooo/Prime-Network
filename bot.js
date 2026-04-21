@@ -232,7 +232,7 @@ client.on("interactionCreate", async interaction => {
     ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
     ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
     ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
-    ctx.font="20px Roboto"; ctx.fillText("Prime Studio",50,100);
+    ctx.font="20px Roboto"; ctx.fillText("Prime Network™",50,100);
     ctx.fillStyle="#ffffff"; ctx.fillRect(40,140,720,140);
     ctx.strokeStyle="#ddd"; ctx.strokeRect(40,140,720,140);
     ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("CLIENT",60,170);
@@ -272,7 +272,7 @@ client.on("interactionCreate", async interaction => {
     ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
     ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
     ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
-    ctx.font="20px Roboto"; ctx.fillText("Prime Studio",50,100);
+    ctx.font="20px Roboto"; ctx.fillText("Prime Network™",50,100);
     ctx.fillStyle="#ffffff"; ctx.fillRect(40,140,720,140);
     ctx.strokeStyle="#ddd"; ctx.strokeRect(40,140,720,140);
     ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("CLIENT",60,170);
