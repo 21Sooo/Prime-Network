@@ -8,7 +8,7 @@ const {
   AttachmentBuilder
 } = require('discord.js');
 
-const { createCanvas, registerFont } = require('canvas');
+const { createCanvas } = require('canvas');
 const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
@@ -59,7 +59,7 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
 });
 
-// --- EMBEDS AVEC ID (FIX) ---
+// --- EMBEDS ---
 async function generatePhotoEmbed(guild) {
   let desc = "";
 
@@ -182,7 +182,6 @@ client.once("ready", async () => {
 client.on("interactionCreate", async interaction => {
 
   const userId = interaction.user.id;
-  const username = interaction.member?.nickname || interaction.user.username;
 
   // --- WATERMARK ---
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
@@ -270,21 +269,47 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  // --- BOUTONS ---
+  // --- BOUTONS AVEC RESTRICTION RÔLES ---
   if (interaction.isButton()) {
 
+    const member = interaction.member;
     const status = interaction.customId === "dispo_on" ? "🟢" : "🔴";
 
+    // PHOTOGRAPHES
     if (interaction.channelId === PHOTO_CHANNEL_ID) {
+
+      if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) {
+        return interaction.reply({
+          content: "❌ Tu n'es pas photographe.",
+          flags: 64
+        });
+      }
+
       photoStatuses[userId] = status;
-    } else if (interaction.channelId === MODEL_CHANNEL_ID) {
+    }
+
+    // MODELS
+    else if (interaction.channelId === MODEL_CHANNEL_ID) {
+
+      if (!member.roles.cache.some(r => r.name === MODEL_ROLE)) {
+        return interaction.reply({
+          content: "❌ Tu n'es pas modèle.",
+          flags: 64
+        });
+      }
+
       modelStatuses[userId] = status;
     }
+
+    else return;
 
     saveStatuses({ photoStatuses, modelStatuses });
     await refreshAll();
 
-    return interaction.reply({ content: "✅ Statut mis à jour", flags: 64 });
+    return interaction.reply({
+      content: "✅ Statut mis à jour",
+      flags: 64
+    });
   }
 });
 
