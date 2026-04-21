@@ -33,8 +33,8 @@ const DEVIS_CHANNEL_ID = "1466817112252219558";
 const PHOTO_ROLE = "🎥・Prime Photographer";
 const MODEL_ROLE = "👠・Prime Model";
 
-const devisCache = new Map();       // Stockage temporaire des devis
-const devisSigners = new Map();     // Stockage des IDs de signataires
+const devisCache = new Map();       // Données des devis
+const devisSigners = new Map();     // Signataire du devis
 
 // FILES
 const panelFile = "./panels.json";
@@ -184,7 +184,6 @@ client.on("interactionCreate", async interaction => {
       const img = sharp(buffer);
       const meta = await img.metadata();
       const logoWidth = Math.floor(meta.width * 0.035);
-
       const wMarkBuffer = await sharp(path.join(__dirname,
         logo === "2" ? "watermark2.png" :
         logo === "3" ? "watermark3.png" :
@@ -202,8 +201,6 @@ client.on("interactionCreate", async interaction => {
         case "southwest": top = meta.height - wMeta.height - marginY; left = marginX; break;
         case "southeast": top = meta.height - wMeta.height - marginY; left = meta.width - wMeta.width - marginX; break;
         case "center": case "centre": top = (meta.height - wMeta.height)/2; left = (meta.width - wMeta.width)/2; break;
-        case "north": top = marginY; left = (meta.width - wMeta.width)/2; break;
-        case "south": top = meta.height - wMeta.height - marginY; left = (meta.width - wMeta.width)/2; break;
       }
 
       const out = await img.composite([{ input: wMarkBuffer, top: Math.round(top), left: Math.round(left) }]).toBuffer();
@@ -215,6 +212,7 @@ client.on("interactionCreate", async interaction => {
   // ===== DEVIS =====
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
     await interaction.deferReply();
+
     const data = {
       client: interaction.options.getString('client'),
       telephone: interaction.options.getString('telephone'),
@@ -228,7 +226,7 @@ client.on("interactionCreate", async interaction => {
     const canvas = createCanvas(800,1000);
     const ctx = canvas.getContext('2d');
 
-    // DESIGN COMPLET DU DEVIS
+    // --- DESIGN COMPLET DU DEVIS ---
     ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
     ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
     ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
@@ -242,7 +240,8 @@ client.on("interactionCreate", async interaction => {
     ctx.fillStyle="#ffffff"; ctx.fillRect(40,320,720,350);
     ctx.strokeRect(40,320,720,350);
     ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("DESCRIPTION",60,350);
-    let y=390,line=""; ctx.font="20px Roboto";
+    let y=390,line="";
+    ctx.font="20px Roboto";
     for (let word of data.description.split(" ")) {
       const testLine=line+word+" ";
       if (ctx.measureText(testLine).width>680) { ctx.fillText(line,60,y); line=word+" "; y+=28; } else line=testLine;
@@ -256,10 +255,14 @@ client.on("interactionCreate", async interaction => {
       new ButtonBuilder().setCustomId(`refuse_${id}`).setLabel("Refuser").setStyle(ButtonStyle.Danger)
     );
 
-    await interaction.editReply({ content:`📝 Nouveau devis généré par ${interaction.member.nickname || interaction.user.username}`, files:[new AttachmentBuilder(canvas.toBuffer(),{name:"devis.png"})], components:[row] });
+    return interaction.editReply({ 
+      content:`📝 Nouveau devis généré par ${interaction.member.nickname || interaction.user.username}`,
+      files:[new AttachmentBuilder(canvas.toBuffer(),{name:"devis.png"})], 
+      components:[row] 
+    });
   }
 
-  // ===== SIGNATURE ET BOUTONS ENVOI =====
+  // ===== SIGNATURE =====
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
     const id = interaction.customId.split("_")[1];
     const data = devisCache.get(id);
@@ -267,8 +270,7 @@ client.on("interactionCreate", async interaction => {
 
     const canvas = createCanvas(800,1000);
     const ctx = canvas.getContext('2d');
-
-    // REFACER LE DESIGN + SIGNATURE
+    // --- DESIGN + SIGNATURE ---
     ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
     ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
     ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
@@ -299,24 +301,38 @@ client.on("interactionCreate", async interaction => {
       new ButtonBuilder().setCustomId(`send_channel_${id}`).setLabel("📤 Channel").setStyle(ButtonStyle.Secondary)
     );
 
-    return interaction.update({ content:`✅ Devis signé par ${interaction.member.nickname || interaction.user.username}`, files:[new AttachmentBuilder(canvas.toBuffer(),{name:"signed.png"})], components:[rowSend] });
+    return interaction.update({
+      content:`✅ Devis signé par ${interaction.member.nickname || interaction.user.username}`,
+      files:[new AttachmentBuilder(canvas.toBuffer(),{name:"signed.png"})],
+      components:[rowSend]
+    });
   }
 
-  // ===== ENVOI DES DEVIS =====
+  // ===== ENVOI =====
   if (interaction.isButton() && interaction.customId.startsWith("send_")) {
     const id = interaction.customId.split("_")[2];
     const signerId = devisSigners.get(id);
     const file = interaction.message.attachments.first();
     const data = devisCache.get(id);
 
+    if (!data) {
+      return interaction.reply({ content:"❌ Impossible d'envoyer le devis : données manquantes", flags:64 });
+    }
+
     if (interaction.customId.startsWith("send_mp") && signerId) {
       const member = await client.users.fetch(signerId);
-      await member.send({ content:`Merci de votre confiance, Prime Network™ vous remercie et espère vous revoir très bientôt !`, files:[file] });
+      await member.send({
+        content:`Merci de votre confiance, Prime Network™ vous remercie et espère vous revoir très bientôt !`,
+        files:[file]
+      });
     }
 
     if (interaction.customId.startsWith("send_channel")) {
       const channel = await client.channels.fetch(DEVIS_CHANNEL_ID);
-      await channel.send({ content:`Client : ${data.client}\nTéléphone : ${data.telephone}`, files:[file] });
+      await channel.send({
+        content:`Client : ${data.client}\nTéléphone : ${data.telephone}`,
+        files:[file]
+      });
     }
 
     await interaction.reply({ content:"✅ Envoyé !", flags:64 });
