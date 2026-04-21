@@ -34,8 +34,8 @@ const DEVIS_CHANNEL_ID = "1466817112252219558";
 const PHOTO_ROLE = "🎥・Prime Photographer";
 const MODEL_ROLE = "👠・Prime Model";
 
-const devisCache = new Map();
-const devisSigners = new Map();
+const devisCache = new Map();       // Données des devis
+const devisSigners = new Map();     // Suivi des signataires
 
 // FILES
 const panelFile = "./panels.json";
@@ -58,7 +58,6 @@ if (!fs.existsSync(statusFile)) {
 
 const getPanels = () => JSON.parse(fs.readFileSync(panelFile));
 const savePanels = (data) => fs.writeFileSync(panelFile, JSON.stringify(data, null, 2));
-
 const getStatuses = () => JSON.parse(fs.readFileSync(statusFile));
 const saveStatuses = (data) => fs.writeFileSync(statusFile, JSON.stringify(data, null, 2));
 
@@ -77,10 +76,16 @@ async function generatePhotoEmbed(guild) {
       const member = await guild.members.fetch(userId);
       const name = member.nickname || member.user.username;
       desc += `• **${name}** → ${photoStatuses[userId]}\n`;
-    } catch { delete photoStatuses[userId]; }
+    } catch {
+      delete photoStatuses[userId];
+    }
   }
   if (!desc) desc = "_Aucun photographe_";
-  return new EmbedBuilder().setTitle("📸 Planning Photographes").setColor("#00bfff").setDescription(desc).setTimestamp();
+  return new EmbedBuilder()
+    .setTitle("📸 Planning Photographes")
+    .setColor("#00bfff")
+    .setDescription(desc)
+    .setTimestamp();
 }
 
 async function generateModelEmbed(guild) {
@@ -90,10 +95,16 @@ async function generateModelEmbed(guild) {
       const member = await guild.members.fetch(userId);
       const name = member.nickname || member.user.username;
       desc += `• **${name}** → ${modelStatuses[userId]}\n`;
-    } catch { delete modelStatuses[userId]; }
+    } catch {
+      delete modelStatuses[userId];
+    }
   }
   if (!desc) desc = "_Aucun modèle_";
-  return new EmbedBuilder().setTitle("👠 Planning Modèles").setColor("#ff69b4").setDescription(desc).setTimestamp();
+  return new EmbedBuilder()
+    .setTitle("👠 Planning Modèles")
+    .setColor("#ff69b4")
+    .setDescription(desc)
+    .setTimestamp();
 }
 
 function generateDashboardEmbed() {
@@ -162,6 +173,7 @@ client.on("interactionCreate", async interaction => {
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
     if (interaction.channelId !== WATERMARK_CHANNEL_ID)
       return interaction.reply({ content: "❌ Mauvais salon", flags: 64 });
+
     await interaction.deferReply();
     const attach = interaction.options.getAttachment("image");
     const pos = interaction.options.getString("position");
@@ -172,10 +184,12 @@ client.on("interactionCreate", async interaction => {
       const img = sharp(buffer);
       const meta = await img.metadata();
       const logoWidth = Math.floor(meta.width * 0.035);
+
       const wMarkBuffer = await sharp(path.join(__dirname,
         logo === "2" ? "watermark2.png" :
         logo === "3" ? "watermark3.png" :
         "watermark.png")).resize({ width: logoWidth }).png().toBuffer();
+
       const wMeta = await sharp(wMarkBuffer).metadata();
       const marginX = Math.floor(meta.width * 0.01);
       const marginY = Math.floor(meta.height * 0.01);
@@ -187,9 +201,9 @@ client.on("interactionCreate", async interaction => {
         case "northeast": top = marginY; left = meta.width - wMeta.width - marginX; break;
         case "southwest": top = meta.height - wMeta.height - marginY; left = marginX; break;
         case "southeast": top = meta.height - wMeta.height - marginY; left = meta.width - wMeta.width - marginX; break;
-        case "center": case "centre": top = (meta.height - wMeta.height)/2; left = (meta.width - wMeta.width)/2; break;
-        case "north": top = marginY; left = (meta.width - wMeta.width)/2; break;
-        case "south": top = meta.height - wMeta.height - marginY; left = (meta.width - wMeta.width)/2; break;
+        case "center": top = Math.floor((meta.height - wMeta.height)/2); left = Math.floor((meta.width - wMeta.width)/2); break;
+        case "north": top = marginY; left = Math.floor((meta.width - wMeta.width)/2); break;
+        case "south": top = meta.height - wMeta.height - marginY; left = Math.floor((meta.width - wMeta.width)/2); break;
       }
 
       const out = await img.composite([{ input: wMarkBuffer, top: Math.round(top), left: Math.round(left) }]).toBuffer();
@@ -198,11 +212,86 @@ client.on("interactionCreate", async interaction => {
     } catch (e) { console.error(e); await interaction.editReply("❌ Erreur watermark"); }
   }
 
-  // ===== DEVIS (COMPLET) =====
-  // ... le code complet du canvas devis avec design, signature, MP, Channel et messages est ici
-  // Le canvas inclut le message "📝 Nouveau devis généré par ..." et après signature "✅ Devis signé par ..."
-  // Boutons Signer / Refuser, puis MP / Channel
-  // Ce code a été validé et testé pour fonctionner avec toutes les fonctionnalités
+  // ===== DEVIS =====
+  if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
+    await interaction.deferReply();
+    const data = {
+      client: interaction.options.getString('client'),
+      telephone: interaction.options.getString('telephone'),
+      photos: interaction.options.getInteger('photos'),
+      description: interaction.options.getString('description'),
+      prix: interaction.options.getInteger('prix')
+    };
+    const id = Date.now().toString();
+    devisCache.set(id, data);
+
+    const canvas = createCanvas(800,1000);
+    const ctx = canvas.getContext('2d');
+
+    // DESIGN COMPLET DU DEVIS
+    ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
+    ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
+    ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
+    ctx.font="20px Roboto"; ctx.fillText("Prime Studio",50,100);
+    ctx.fillStyle="#ffffff"; ctx.fillRect(40,140,720,140);
+    ctx.strokeStyle="#ddd"; ctx.strokeRect(40,140,720,140);
+    ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("CLIENT",60,170);
+    ctx.font="20px Roboto"; ctx.fillText(`Nom : ${data.client}`,60,210);
+    ctx.fillText(`Téléphone : ${data.telephone}`,60,240);
+    ctx.fillText(`Photos : ${data.photos}`,60,270);
+    ctx.fillStyle="#ffffff"; ctx.fillRect(40,320,720,350);
+    ctx.strokeRect(40,320,720,350);
+    ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("DESCRIPTION",60,350);
+    let y=390,line="";
+    ctx.font="20px Roboto";
+    for (let word of data.description.split(" ")) {
+      const testLine=line+word+" ";
+      if (ctx.measureText(testLine).width>680) { ctx.fillText(line,60,y); line=word+" "; y+=28; } else line=testLine;
+    }
+    ctx.fillText(line,60,y);
+    ctx.fillStyle="#111"; ctx.fillRect(40,720,720,100);
+    ctx.fillStyle="#fff"; ctx.font="bold 32px Roboto"; ctx.fillText(`TOTAL : $${data.prix}`,60,780);
+
+    await interaction.editReply({ files:[new AttachmentBuilder(canvas.toBuffer(),{name:"devis.png"})], content:`📝 Nouveau devis généré par ${interaction.member.nickname || interaction.user.username}` });
+  }
+
+  // ===== SIGNATURE + ENVOI =====
+  if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
+    const id = interaction.customId.split("_")[1];
+    const data = devisCache.get(id);
+    devisSigners.set(id, interaction.user.id);
+
+    const canvas = createCanvas(800,1000);
+    const ctx = canvas.getContext('2d');
+
+    // REFONT DESIGN + SIGNATURE
+    ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
+    ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
+    ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
+    ctx.font="20px Roboto"; ctx.fillText("Prime Studio",50,100);
+    ctx.fillStyle="#ffffff"; ctx.fillRect(40,140,720,140);
+    ctx.strokeStyle="#ddd"; ctx.strokeRect(40,140,720,140);
+    ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("CLIENT",60,170);
+    ctx.font="20px Roboto"; ctx.fillText(`Nom : ${data.client}`,60,210);
+    ctx.fillText(`Téléphone : ${data.telephone}`,60,240);
+    ctx.fillText(`Photos : ${data.photos}`,60,270);
+    ctx.fillStyle="#ffffff"; ctx.fillRect(40,320,720,350);
+    ctx.strokeRect(40,320,720,350);
+    ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("DESCRIPTION",60,350);
+    y=390; line=""; ctx.font="20px Roboto";
+    for (let word of data.description.split(" ")) {
+      const testLine=line+word+" ";
+      if (ctx.measureText(testLine).width>680) { ctx.fillText(line,60,y); line=word+" "; y+=28; } else line=testLine;
+    }
+    ctx.fillText(line,60,y);
+    ctx.fillStyle="#111"; ctx.fillRect(40,720,720,100);
+    ctx.fillStyle="#fff"; ctx.font="bold 32px Roboto"; ctx.fillText(`TOTAL : $${data.prix}`,60,780);
+    ctx.fillStyle="#111"; ctx.font="20px Roboto"; ctx.fillText("Signature :",60,900);
+    ctx.font="28px Dancing"; ctx.fillText(interaction.member.nickname || interaction.user.username,200,900);
+    ctx.font="16px Roboto"; ctx.fillText(`Le ${new Date().toLocaleDateString()}`,200,930);
+
+    await interaction.update({ files:[new AttachmentBuilder(canvas.toBuffer(),{name:"signed.png"})], content:`✅ Devis signé par ${interaction.member.nickname || interaction.user.username}` });
+  }
 
   // ===== DISPO =====
   if (interaction.isButton()) {
