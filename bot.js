@@ -8,15 +8,18 @@ const {
   AttachmentBuilder
 } = require('discord.js');
 
-const { createCanvas } = require('canvas');
+const { createCanvas, registerFont } = require('canvas');
 const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
-
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const fetch = require("node-fetch");
 
 const TOKEN = process.env.TOKEN;
 const GUILD_ID = "1403500050067230730";
+
+// FONTS FIX
+registerFont('./DancingScript.ttf', { family: 'Dancing' });
+registerFont('./Roboto-Regular.ttf', { family: 'Roboto' });
 
 // CONFIG
 const PHOTO_CHANNEL_ID = "1403500792106717235";
@@ -61,7 +64,7 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
 });
 
-// EMBEDS
+// EMBEDS (inchangés)
 async function generatePhotoEmbed(guild) {
   let desc = "";
 
@@ -120,13 +123,13 @@ function generateDashboardEmbed() {
     .setTimestamp();
 }
 
-// BUTTONS
+// BUTTONS (inchangé)
 const dispoButtons = new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId("dispo_on").setLabel("🟢 Disponible").setStyle(ButtonStyle.Success),
   new ButtonBuilder().setCustomId("dispo_off").setLabel("🔴 Indisponible").setStyle(ButtonStyle.Danger)
 );
 
-// PANELS
+// PANELS (inchangé)
 async function updatePanel(channelId, embed, key) {
   const channel = await client.channels.fetch(channelId);
   const panels = getPanels();
@@ -167,7 +170,7 @@ client.once("ready", async () => {
   await refreshAll();
 });
 
-// DELETE PANEL
+// DELETE PANEL (inchangé)
 client.on("messageDelete", async (msg) => {
   const panels = getPanels();
 
@@ -215,8 +218,7 @@ client.on("interactionCreate", async interaction => {
       "watermark.png";
 
     try {
-      const res = await fetch(attach.url);
-      const buffer = Buffer.from(await res.arrayBuffer());
+      const buffer = await (await fetch(attach.url)).buffer();
 
       const img = sharp(buffer);
       const meta = await img.metadata();
@@ -241,7 +243,7 @@ client.on("interactionCreate", async interaction => {
     }
   }
 
-  // DEVIS
+  // DEVIS FIX POLICE
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
 
     await interaction.deferReply();
@@ -264,7 +266,7 @@ client.on("interactionCreate", async interaction => {
     ctx.fillRect(0, 0, 800, 1000);
 
     ctx.fillStyle = "#000";
-    ctx.font = "30px sans-serif";
+    ctx.font = "30px Roboto";
 
     ctx.fillText(`Client: ${data.client}`, 50, 100);
     ctx.fillText(`Téléphone: ${data.telephone}`, 50, 150);
@@ -284,7 +286,7 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  // SIGN / REFUSE
+  // SIGNATURE FIX
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
 
     const id = interaction.customId.split("_")[1];
@@ -300,15 +302,15 @@ client.on("interactionCreate", async interaction => {
     ctx.fillRect(0, 0, 800, 1000);
 
     ctx.fillStyle = "#000";
-    ctx.font = "30px sans-serif";
+    ctx.font = "30px Roboto";
 
     ctx.fillText(`Client: ${devis.client}`, 50, 100);
     ctx.fillText(`Prix: $${devis.prix}`, 50, 200);
 
-    ctx.font = "28px cursive";
+    ctx.font = "28px Dancing";
     ctx.fillText(name, 50, 850);
 
-    ctx.font = "20px sans-serif";
+    ctx.font = "20px Roboto";
     ctx.fillText(`Signé le ${date}`, 50, 900);
 
     devisCache.delete(id);
