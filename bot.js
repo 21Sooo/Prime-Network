@@ -191,7 +191,7 @@ client.on("interactionCreate", async interaction => {
 
   const userId = interaction.user.id;
 
-  // ===== WATERMARK FIX =====
+  // ===== WATERMARK =====
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
 
     if (interaction.channelId !== WATERMARK_CHANNEL_ID)
@@ -221,21 +221,16 @@ client.on("interactionCreate", async interaction => {
         .toBuffer();
 
       const wMeta = await sharp(wMarkBuffer).metadata();
-
       const margin = Math.floor(meta.width * 0.01);
 
       let top, left;
       const position = (pos || "southeast").toLowerCase();
 
       switch (position) {
-        case "northwest":
-          top = margin; left = margin; break;
-        case "northeast":
-          top = margin; left = meta.width - wMeta.width - margin; break;
-        case "southwest":
-          top = meta.height - wMeta.height - margin; left = margin; break;
-        case "southeast":
-          top = meta.height - wMeta.height - margin; left = meta.width - wMeta.width - margin; break;
+        case "northwest": top = margin; left = margin; break;
+        case "northeast": top = margin; left = meta.width - wMeta.width - margin; break;
+        case "southwest": top = meta.height - wMeta.height - margin; left = margin; break;
+        case "southeast": top = meta.height - wMeta.height - margin; left = meta.width - wMeta.width - margin; break;
         case "center":
         case "centre":
           top = Math.floor((meta.height - wMeta.height) / 2);
@@ -266,7 +261,7 @@ client.on("interactionCreate", async interaction => {
     }
   }
 
-  // ===== DEVIS FIX DESIGN =====
+  // ===== DEVIS =====
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
 
     await interaction.deferReply();
@@ -352,7 +347,7 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  // ===== SIGNATURE FIX =====
+  // ===== SIGNATURE =====
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
 
     const id = interaction.customId.split("_")[1];
@@ -361,10 +356,63 @@ client.on("interactionCreate", async interaction => {
     const canvas = createCanvas(800, 1000);
     const ctx = canvas.getContext('2d');
 
-    // 👉 on redessine EXACTEMENT pareil + signature
-    // (copie identique du bloc au-dessus)
+    // 👉 EXACT même design + signature
+    // (copié du devis)
 
-    // ... (identique)
+    ctx.fillStyle = "#f5f5f5";
+    ctx.fillRect(0, 0, 800, 1000);
+
+    ctx.fillStyle = "#111";
+    ctx.fillRect(0, 0, 800, 120);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 42px Roboto";
+    ctx.fillText("DEVIS", 50, 70);
+
+    ctx.font = "20px Roboto";
+    ctx.fillText("Prime Studio", 50, 100);
+
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(40, 140, 720, 140);
+    ctx.strokeStyle = "#ddd";
+    ctx.strokeRect(40, 140, 720, 140);
+
+    ctx.fillStyle = "#111";
+    ctx.font = "bold 22px Roboto";
+    ctx.fillText("CLIENT", 60, 170);
+
+    ctx.font = "20px Roboto";
+    ctx.fillText(`Nom : ${data.client}`, 60, 210);
+    ctx.fillText(`Téléphone : ${data.telephone}`, 60, 240);
+    ctx.fillText(`Photos : ${data.photos}`, 60, 270);
+
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(40, 320, 720, 350);
+    ctx.strokeRect(40, 320, 720, 350);
+
+    ctx.fillStyle = "#111";
+    ctx.font = "bold 22px Roboto";
+    ctx.fillText("DESCRIPTION", 60, 350);
+
+    let y = 390, line = "";
+    ctx.font = "20px Roboto";
+
+    for (let word of data.description.split(" ")) {
+      const test = line + word + " ";
+      if (ctx.measureText(test).width > 680) {
+        ctx.fillText(line, 60, y);
+        line = word + " ";
+        y += 28;
+      } else line = test;
+    }
+    ctx.fillText(line, 60, y);
+
+    ctx.fillStyle = "#111";
+    ctx.fillRect(40, 720, 720, 100);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 32px Roboto";
+    ctx.fillText(`TOTAL : $${data.prix}`, 60, 780);
 
     // SIGNATURE
     ctx.fillStyle = "#111";
