@@ -15,7 +15,7 @@ const path = require("path");
 
 const TOKEN = process.env.TOKEN;
 
-// --- CONFIGURATION DES IDS ---
+// --- CONFIG ---
 const PHOTO_CHANNEL_ID = "1403500792106717235";
 const MODEL_CHANNEL_ID = "1477705326525681806";
 const DASHBOARD_CHANNEL_ID = "1490305746598887435";
@@ -24,7 +24,6 @@ const WATERMARK_CHANNEL_ID = "1462586238648324146";
 const PHOTO_ROLE = "🎥・Prime Photographer";
 const MODEL_ROLE = "👠・Prime Model";
 
-// --- MÉMOIRE TEMPORAIRE ---
 const devisCache = new Map();
 
 // --- FONTS ---
@@ -38,7 +37,7 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// --- FICHIERS ---
+// --- FILES ---
 const panelFile = "./panels.json";
 const statusFile = "./statuses.json";
 
@@ -103,7 +102,7 @@ async function createPrimeDevis(data, signatureName = null) {
   }
   ctx.fillText(line, 50, yDesc);
 
-  // 💲 FIX DEVISE
+  // 💲 DOLLAR
   ctx.font = "bold 35px sans-serif";
   ctx.fillText(`TOTAL À RÉGLER : $${data.prix || 0}`, 50, 850);
 
@@ -250,7 +249,7 @@ client.on("interactionCreate", async interaction => {
     }
   }
 
-  // --- WATERMARK FIX ---
+  // --- WATERMARK FINAL FIX ---
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
 
     if (interaction.channelId !== WATERMARK_CHANNEL_ID)
@@ -266,27 +265,40 @@ client.on("interactionCreate", async interaction => {
       logoChoice === "3" ? "watermark3.png" :
       "watermark.png";
 
-    const validPositions = ["north","south","east","west","northeast","northwest","southeast","southwest","center"];
+    // 🔥 MAPPING POSITION
+    const positionMap = {
+      "milieu haut": "north",
+      "milieu bas": "south",
+      "haut gauche": "northwest",
+      "haut droit": "northeast",
+      "bas gauche": "southwest",
+      "bas droit": "southeast",
+      "milieu": "center"
+    };
+
     const posInput = interaction.options.getString("position");
-    const pos = validPositions.includes(posInput) ? posInput : "southeast";
+    const pos = positionMap[posInput] || "southeast";
 
     try {
       const response = await fetch(attach.url);
-      const arrayBuffer = await response.arrayBuffer();
-      const input = Buffer.from(arrayBuffer);
+      const buffer = Buffer.from(await response.arrayBuffer());
 
-      const img = sharp(input);
+      const img = sharp(buffer);
       const meta = await img.metadata();
 
       const watermarkPath = path.join(__dirname, watermarkFile);
 
       const wMark = await sharp(watermarkPath)
-        .resize({ width: Math.floor(meta.width * 0.15) })
+        .resize({ width: Math.floor(meta.width * 0.06) }) // 🔥 taille réduite
+        .png()
         .toBuffer();
 
-      const out = await img
-        .composite([{ input: wMark, gravity: pos }])
-        .toBuffer();
+      const out = await img.composite([{
+        input: wMark,
+        gravity: pos,
+        blend: 'over',
+        opacity: 0.8 // 🔥 transparence
+      }]).toBuffer();
 
       await interaction.editReply({
         files: [new AttachmentBuilder(out, { name: 'prime_photo.png' })]
