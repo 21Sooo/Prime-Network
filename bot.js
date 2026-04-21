@@ -194,11 +194,10 @@ client.on("interactionCreate", async interaction => {
       const wMeta = await sharp(wMarkBuffer).metadata();
       const marginX = Math.floor(meta.width * 0.01);
       const marginY = Math.floor(meta.height * 0.01);
-
       let top = 0, left = 0;
       const position = (pos || "southeast").toLowerCase();
 
-      // CORRECT MID POSITIONS
+      // Gestion de toutes les positions y compris milieu
       switch(position) {
         case "northwest": top = marginY; left = marginX; break;
         case "northeast": top = marginY; left = meta.width - wMeta.width - marginX; break;
@@ -231,23 +230,20 @@ client.on("interactionCreate", async interaction => {
     const canvas = createCanvas(800,1000);
     const ctx = canvas.getContext('2d');
 
-    // --- DESIGN COMPLET DU DEVIS ---
+    // DESIGN COMPLET DU DEVIS
     ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
     ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
     ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
     ctx.font="20px Roboto"; ctx.fillText("Prime Studio",50,100);
-
     ctx.fillStyle="#ffffff"; ctx.fillRect(40,140,720,140);
     ctx.strokeStyle="#ddd"; ctx.strokeRect(40,140,720,140);
     ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("CLIENT",60,170);
     ctx.font="20px Roboto"; ctx.fillText(`Nom : ${data.client}`,60,210);
     ctx.fillText(`Téléphone : ${data.telephone}`,60,240);
     ctx.fillText(`Photos : ${data.photos}`,60,270);
-
     ctx.fillStyle="#ffffff"; ctx.fillRect(40,320,720,350);
     ctx.strokeRect(40,320,720,350);
     ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("DESCRIPTION",60,350);
-
     let y=390,line="";
     ctx.font="20px Roboto";
     for (let word of data.description.split(" ")) {
@@ -255,7 +251,6 @@ client.on("interactionCreate", async interaction => {
       if (ctx.measureText(testLine).width>680) { ctx.fillText(line,60,y); line=word+" "; y+=28; } else line=testLine;
     }
     ctx.fillText(line,60,y);
-
     ctx.fillStyle="#111"; ctx.fillRect(40,720,720,100);
     ctx.fillStyle="#fff"; ctx.font="bold 32px Roboto"; ctx.fillText(`TOTAL : $${data.prix}`,60,780);
 
@@ -267,7 +262,7 @@ client.on("interactionCreate", async interaction => {
     await interaction.editReply({ files:[new AttachmentBuilder(canvas.toBuffer(),{name:"devis.png"})], components:[row] });
   }
 
-  // ===== SIGNATURE =====
+  // ===== SIGNATURE ET BOUTONS D'ENVOI =====
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
     const id = interaction.customId.split("_")[1];
     const data = devisCache.get(id);
@@ -276,33 +271,27 @@ client.on("interactionCreate", async interaction => {
     const canvas = createCanvas(800,1000);
     const ctx = canvas.getContext('2d');
 
-    // --- DESIGN COMPLET + SIGNATURE ---
     ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
     ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
     ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
     ctx.font="20px Roboto"; ctx.fillText("Prime Studio",50,100);
-
     ctx.fillStyle="#ffffff"; ctx.fillRect(40,140,720,140);
     ctx.strokeStyle="#ddd"; ctx.strokeRect(40,140,720,140);
     ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("CLIENT",60,170);
     ctx.font="20px Roboto"; ctx.fillText(`Nom : ${data.client}`,60,210);
     ctx.fillText(`Téléphone : ${data.telephone}`,60,240);
     ctx.fillText(`Photos : ${data.photos}`,60,270);
-
     ctx.fillStyle="#ffffff"; ctx.fillRect(40,320,720,350);
     ctx.strokeRect(40,320,720,350);
     ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("DESCRIPTION",60,350);
-
     y=390; line=""; ctx.font="20px Roboto";
     for (let word of data.description.split(" ")) {
       const testLine=line+word+" ";
       if (ctx.measureText(testLine).width>680) { ctx.fillText(line,60,y); line=word+" "; y+=28; } else line=testLine;
     }
     ctx.fillText(line,60,y);
-
     ctx.fillStyle="#111"; ctx.fillRect(40,720,720,100);
     ctx.fillStyle="#fff"; ctx.font="bold 32px Roboto"; ctx.fillText(`TOTAL : $${data.prix}`,60,780);
-
     ctx.fillStyle="#111"; ctx.font="20px Roboto"; ctx.fillText("Signature :",60,900);
     ctx.font="28px Dancing"; ctx.fillText(interaction.member.nickname || interaction.user.username,200,900);
     ctx.font="16px Roboto"; ctx.fillText(`Le ${new Date().toLocaleDateString()}`,200,930);
@@ -315,9 +304,10 @@ client.on("interactionCreate", async interaction => {
     return interaction.update({ files:[new AttachmentBuilder(canvas.toBuffer(),{name:"signed.png"})], components:[rowSend] });
   }
 
-  // ===== ENVOI =====
+  // ===== ENVOI DES DEVIS =====
   if (interaction.isButton() && interaction.customId.startsWith("send_")) {
-    const id = interaction.customId.split("_")[2];
+    const parts = interaction.customId.split("_");
+    const id = parts[parts.length-1];
     const signerId = devisSigners.get(id);
     const file = interaction.message.attachments.first();
     const data = devisCache.get(id);
