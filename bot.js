@@ -34,8 +34,8 @@ const DEVIS_CHANNEL_ID = "1466817112252219558";
 const PHOTO_ROLE = "🎥・Prime Photographer";
 const MODEL_ROLE = "👠・Prime Model";
 
-const devisCache = new Map();
-const devisSigners = new Map();
+const devisCache = new Map();       // Données des devis
+const devisSigners = new Map();     // Pour tracker qui a signé
 
 // FILES
 const panelFile = "./panels.json";
@@ -177,7 +177,7 @@ client.on("interactionCreate", async interaction => {
 
     await interaction.deferReply();
     const attach = interaction.options.getAttachment("image");
-    const pos = (interaction.options.getString("position") || "southeast").toLowerCase();
+    const pos = interaction.options.getString("position");
     const logo = interaction.options.getString("logo") || "1";
 
     try {
@@ -194,22 +194,22 @@ client.on("interactionCreate", async interaction => {
       const wMeta = await sharp(wMarkBuffer).metadata();
       const marginX = Math.floor(meta.width * 0.01);
       const marginY = Math.floor(meta.height * 0.01);
-
       let top = 0, left = 0;
-      switch (pos) {
+      const position = (pos || "southeast").toLowerCase();
+
+      // Corrigé pour positions milieu haut et milieu bas
+      switch(position) {
         case "northwest": top = marginY; left = marginX; break;
         case "northeast": top = marginY; left = meta.width - wMeta.width - marginX; break;
         case "southwest": top = meta.height - wMeta.height - marginY; left = marginX; break;
         case "southeast": top = meta.height - wMeta.height - marginY; left = meta.width - wMeta.width - marginX; break;
-        case "center":
-        case "centre": top = (meta.height - wMeta.height)/2; left = (meta.width - wMeta.width)/2; break;
-        case "north": top = marginY; left = (meta.width - wMeta.width)/2; break;
-        case "south": top = meta.height - wMeta.height - marginY; left = (meta.width - wMeta.width)/2; break;
+        case "center": top = Math.floor((meta.height - wMeta.height)/2); left = Math.floor((meta.width - wMeta.width)/2); break;
+        case "north": top = marginY; left = Math.floor((meta.width - wMeta.width)/2); break;
+        case "south": top = meta.height - wMeta.height - marginY; left = Math.floor((meta.width - wMeta.width)/2); break;
       }
 
       const out = await img.composite([{ input: wMarkBuffer, top: Math.round(top), left: Math.round(left) }]).toBuffer();
       await interaction.editReply({ files: [new AttachmentBuilder(out, { name: "prime.png" })] });
-
     } catch (e) { console.error(e); await interaction.editReply("❌ Erreur watermark"); }
   }
 
@@ -229,7 +229,7 @@ client.on("interactionCreate", async interaction => {
     const canvas = createCanvas(800,1000);
     const ctx = canvas.getContext('2d');
 
-    // DESIGN DU DEVIS
+    // DESIGN COMPLET DU DEVIS
     ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
     ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
     ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
@@ -243,7 +243,8 @@ client.on("interactionCreate", async interaction => {
     ctx.fillStyle="#ffffff"; ctx.fillRect(40,320,720,350);
     ctx.strokeRect(40,320,720,350);
     ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("DESCRIPTION",60,350);
-    let y=390,line=""; ctx.font="20px Roboto";
+    let y=390,line="";
+    ctx.font="20px Roboto";
     for (let word of data.description.split(" ")) {
       const testLine=line+word+" ";
       if (ctx.measureText(testLine).width>680) { ctx.fillText(line,60,y); line=word+" "; y+=28; } else line=testLine;
@@ -260,11 +261,11 @@ client.on("interactionCreate", async interaction => {
     await interaction.editReply({ files:[new AttachmentBuilder(canvas.toBuffer(),{name:"devis.png"})], components:[row] });
   }
 
-  // ===== SIGNATURE ET BOUTONS D'ENVOI =====
+  // SIGNATURE + BOUTONS ENVOI
   if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
     const id = interaction.customId.split("_")[1];
     const data = devisCache.get(id);
-    devisSigners.set(id, interaction.user.id);
+    devisSigners.set(id, interaction.user.id); // tracker le signataire
 
     const canvas = createCanvas(800,1000);
     const ctx = canvas.getContext('2d');
@@ -295,7 +296,7 @@ client.on("interactionCreate", async interaction => {
     ctx.font="16px Roboto"; ctx.fillText(`Le ${new Date().toLocaleDateString()}`,200,930);
 
     const rowSend = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`send_mp_${id}`).setLabel("📩 MP`).setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`send_mp_${id}`).setLabel("📩 MP").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(`send_channel_${id}`).setLabel("📤 Channel").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(`send_both_${id}`).setLabel("📤📩 Les deux").setStyle(ButtonStyle.Success)
     );
@@ -303,7 +304,7 @@ client.on("interactionCreate", async interaction => {
     return interaction.update({ files:[new AttachmentBuilder(canvas.toBuffer(),{name:"signed.png"})], components:[rowSend] });
   }
 
-  // ===== ENVOI DES DEVIS =====
+  // ENVOI DES DEVIS
   if (interaction.isButton() && interaction.customId.startsWith("send_")) {
     const id = interaction.customId.split("_")[2];
     const signerId = devisSigners.get(id);
