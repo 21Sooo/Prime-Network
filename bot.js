@@ -15,7 +15,7 @@ const path = require("path");
 
 const TOKEN = process.env.TOKEN;
 
-// --- CONFIG ---
+// --- CONFIGURATION ---
 const PHOTO_CHANNEL_ID = "1403500792106717235";
 const MODEL_CHANNEL_ID = "1477705326525681806";
 const DASHBOARD_CHANNEL_ID = "1490305746598887435";
@@ -37,7 +37,7 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// --- FILES ---
+// --- FICHIERS ---
 const panelFile = "./panels.json";
 const statusFile = "./statuses.json";
 
@@ -102,7 +102,6 @@ async function createPrimeDevis(data, signatureName = null) {
   }
   ctx.fillText(line, 50, yDesc);
 
-  // 💲 DOLLAR
   ctx.font = "bold 35px sans-serif";
   ctx.fillText(`TOTAL À RÉGLER : $${data.prix || 0}`, 50, 850);
 
@@ -249,7 +248,7 @@ client.on("interactionCreate", async interaction => {
     }
   }
 
-  // --- WATERMARK FINAL FIX ---
+  // --- WATERMARK FINAL ---
   if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
 
     if (interaction.channelId !== WATERMARK_CHANNEL_ID)
@@ -265,19 +264,19 @@ client.on("interactionCreate", async interaction => {
       logoChoice === "3" ? "watermark3.png" :
       "watermark.png";
 
-    // 🔥 MAPPING POSITION
+    // 🔥 FIX MAJUSCULES
     const positionMap = {
-      "milieu haut": "north",
-      "milieu bas": "south",
-      "haut gauche": "northwest",
-      "haut droit": "northeast",
+      "centre": "center",
+      "bas droite": "southeast",
       "bas gauche": "southwest",
-      "bas droit": "southeast",
-      "milieu": "center"
+      "haut droite": "northeast",
+      "haut gauche": "northwest",
+      "milieu haut": "north",
+      "milieu bas": "south"
     };
 
     const posInput = interaction.options.getString("position");
-    const pos = positionMap[posInput] || "southeast";
+    const pos = positionMap[posInput?.toLowerCase()] || "southeast";
 
     try {
       const response = await fetch(attach.url);
@@ -289,7 +288,7 @@ client.on("interactionCreate", async interaction => {
       const watermarkPath = path.join(__dirname, watermarkFile);
 
       const wMark = await sharp(watermarkPath)
-        .resize({ width: Math.floor(meta.width * 0.06) }) // 🔥 taille réduite
+        .resize({ width: Math.floor(meta.width * 0.06) })
         .png()
         .toBuffer();
 
@@ -297,7 +296,7 @@ client.on("interactionCreate", async interaction => {
         input: wMark,
         gravity: pos,
         blend: 'over',
-        opacity: 0.8 // 🔥 transparence
+        opacity: 0.8
       }]).toBuffer();
 
       await interaction.editReply({
