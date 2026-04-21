@@ -8,14 +8,19 @@ const {
   AttachmentBuilder
 } = require('discord.js');
 
-const { createCanvas } = require('canvas');
+const { createCanvas, registerFont } = require('canvas');
 const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
 
-const TOKEN = process.env.TOKEN;
-const GUILD_ID = "1403500050067230730";
+// ================= FONTS =================
+registerFont('./DancingScript.ttf', { family: 'Dancing' });
+registerFont('./Roboto-Regular.ttf', { family: 'Roboto' });
 
+// ================= CONFIG =================
+const TOKEN = process.env.TOKEN;
+
+const GUILD_ID = "1403500050067230730";
 const PHOTO_CHANNEL_ID = "1403500792106717235";
 const MODEL_CHANNEL_ID = "1477705326525681806";
 const DASHBOARD_CHANNEL_ID = "1490305746598887435";
@@ -24,12 +29,13 @@ const WATERMARK_CHANNEL_ID = "1462586238648324146";
 const PHOTO_ROLE = "🎥・Prime Photographer";
 const MODEL_ROLE = "👠・Prime Model";
 
+// ================= FILES =================
 const panelFile = "./panels.json";
 const statusFile = "./statuses.json";
 
 const devisCache = new Map();
 
-// ================= FILE INIT =================
+// ================= INIT =================
 if (!fs.existsSync(panelFile)) {
   fs.writeFileSync(panelFile, JSON.stringify({
     photoMessageId: null,
@@ -128,7 +134,7 @@ async function refreshAll() {
   saveStatuses({ photoStatuses, modelStatuses });
 }
 
-// ================= READY (PERSISTANT) =================
+// ================= READY =================
 client.once("ready", async () => {
   console.log("✅ Bot prêt");
 
@@ -162,7 +168,7 @@ client.once("ready", async () => {
   savePanels(panels);
 });
 
-// ================= AUTO RECREATE =================
+// ================= DELETE =================
 client.on("messageDelete", async (msg) => {
   const panels = getPanels();
 
@@ -190,12 +196,18 @@ client.on("interactionCreate", async interaction => {
 
     const attach = interaction.options.getAttachment("image");
     const pos = interaction.options.getString("position");
-    const logo = interaction.options.getString("logo");
 
-    const file =
-      logo === "2" ? "watermark2.png" :
-      logo === "3" ? "watermark3.png" :
-      "watermark.png";
+    const map = {
+      "top-left": "northwest",
+      "top-right": "northeast",
+      "bottom-left": "southwest",
+      "bottom-right": "southeast",
+      "center": "center",
+      "top-center": "north",
+      "bottom-center": "south"
+    };
+
+    const gravity = map[pos] || "southeast";
 
     const res = await fetch(attach.url);
     const buffer = Buffer.from(await res.arrayBuffer());
@@ -203,11 +215,13 @@ client.on("interactionCreate", async interaction => {
     const img = sharp(buffer);
     const meta = await img.metadata();
 
-    const wm = await sharp(path.join(__dirname, file))
+    const wm = await sharp("./watermark.png")
       .resize({ width: Math.floor(meta.width * 0.06) })
       .toBuffer();
 
-    const out = await img.composite([{ input: wm, gravity: pos, opacity: 0.8 }]).toBuffer();
+    const out = await img.composite([
+      { input: wm, gravity: gravity, opacity: 0.8 }
+    ]).toBuffer();
 
     return interaction.editReply({
       files: [new AttachmentBuilder(out, { name: "watermark.png" })]
@@ -238,33 +252,20 @@ client.on("interactionCreate", async interaction => {
     ctx.fillRect(0, 0, 900, 1100);
 
     ctx.fillStyle = "#000";
-    ctx.font = "bold 40px sans-serif";
+    ctx.font = "bold 40px Roboto";
     ctx.fillText("DEVIS", 50, 80);
 
-    ctx.font = "20px sans-serif";
+    ctx.font = "20px Roboto";
     ctx.fillText(`Date : ${new Date().toLocaleDateString()}`, 50, 120);
 
-    ctx.beginPath();
-    ctx.moveTo(50, 150);
-    ctx.lineTo(850, 150);
-    ctx.stroke();
+    ctx.fillText(`Client : ${data.client}`, 50, 200);
+    ctx.fillText(`Téléphone : ${data.telephone}`, 50, 230);
+    ctx.fillText(`Photographe : ${data.photographe}`, 50, 260);
+    ctx.fillText(`Photos : ${data.photos}`, 50, 290);
 
-    ctx.font = "bold 25px sans-serif";
-    ctx.fillText("CLIENT", 50, 200);
+    ctx.fillText("Description :", 50, 340);
 
-    ctx.font = "20px sans-serif";
-    ctx.fillText(`Nom : ${data.client}`, 50, 240);
-    ctx.fillText(`Téléphone : ${data.telephone}`, 50, 270);
-
-    ctx.font = "bold 25px sans-serif";
-    ctx.fillText("PRESTATION", 50, 340);
-
-    ctx.font = "20px sans-serif";
-    ctx.fillText(`Photographe : ${data.photographe}`, 50, 380);
-    ctx.fillText(`Photos : ${data.photos}`, 50, 410);
-    ctx.fillText(`Description :`, 50, 440);
-
-    let y = 470;
+    let y = 380;
     let line = "";
     for (let word of data.description.split(" ")) {
       const test = line + word + " ";
@@ -278,9 +279,10 @@ client.on("interactionCreate", async interaction => {
     }
     ctx.fillText(line, 50, y);
 
-    ctx.font = "bold 30px sans-serif";
+    ctx.font = "bold 30px Roboto";
     ctx.fillText(`TOTAL : $${data.prix}`, 50, 700);
 
+    ctx.font = "20px Roboto";
     ctx.fillText("Signature client :", 50, 850);
     ctx.strokeRect(50, 870, 300, 100);
 
@@ -316,19 +318,18 @@ client.on("interactionCreate", async interaction => {
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, 900, 1100);
 
-      ctx.fillStyle = "#000";
-      ctx.font = "bold 40px sans-serif";
+      ctx.font = "bold 40px Roboto";
       ctx.fillText("DEVIS SIGNÉ", 50, 80);
 
-      ctx.font = "20px sans-serif";
-      ctx.fillText(`Signé le : ${date}`, 50, 120);
-
+      ctx.font = "20px Roboto";
       ctx.fillText(`Client : ${devis.client}`, 50, 200);
-      ctx.fillText(`Photographe : ${devis.photographe}`, 50, 240);
-      ctx.fillText(`TOTAL : $${devis.prix}`, 50, 300);
+      ctx.fillText(`TOTAL : $${devis.prix}`, 50, 260);
 
-      ctx.font = "italic 30px sans-serif";
+      ctx.font = "30px Dancing";
       ctx.fillText(name, 60, 900);
+
+      ctx.font = "20px Roboto";
+      ctx.fillText(`Signé le ${date}`, 60, 950);
 
       const buffer = canvas.toBuffer();
 
@@ -345,52 +346,6 @@ client.on("interactionCreate", async interaction => {
       await interaction.message.delete().catch(() => {});
       return;
     }
-  }
-
-  // ---------- PING ----------
-  if (interaction.isChatInputCommand()) {
-
-    const build = (data, s) =>
-      Object.entries(data)
-        .filter(([_, v]) => v === s)
-        .map(([id]) => `<@${id}>`)
-        .join(" ") || null;
-
-    if (interaction.commandName === "pingdispo_photo")
-      return interaction.reply({ content: build(photoStatuses, "🟢") || "❌ Aucun" });
-
-    if (interaction.commandName === "pingindispo_photo")
-      return interaction.reply({ content: build(photoStatuses, "🔴") || "❌ Aucun" });
-
-    if (interaction.commandName === "pingdispo_model")
-      return interaction.reply({ content: build(modelStatuses, "🟢") || "❌ Aucun" });
-
-    if (interaction.commandName === "pingindispo_model")
-      return interaction.reply({ content: build(modelStatuses, "🔴") || "❌ Aucun" });
-  }
-
-  // ---------- BOUTONS DISPO ----------
-  if (interaction.isButton()) {
-
-    const member = interaction.member;
-    const status = interaction.customId === "dispo_on" ? "🟢" : "🔴";
-
-    if (interaction.channelId === PHOTO_CHANNEL_ID) {
-      if (!member.roles.cache.some(r => r.name === PHOTO_ROLE))
-        return interaction.reply({ content: "❌ Pas photographe", flags: 64 });
-
-      photoStatuses[userId] = status;
-    }
-
-    else if (interaction.channelId === MODEL_CHANNEL_ID) {
-      if (!member.roles.cache.some(r => r.name === MODEL_ROLE))
-        return interaction.reply({ content: "❌ Pas modèle", flags: 64 });
-
-      modelStatuses[userId] = status;
-    }
-
-    await refreshAll();
-    return interaction.reply({ content: "✅ Statut mis à jour", flags: 64 });
   }
 
 });
