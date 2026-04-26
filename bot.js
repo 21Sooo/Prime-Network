@@ -348,6 +348,5 @@ if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
     files:[new AttachmentBuilder(canvas.toBuffer(),{name:"signed.png"})],
     components:[rowSend]
   });
-}
 
 client.login(TOKEN);
