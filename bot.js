@@ -169,46 +169,107 @@ client.on("messageDelete", async (msg) => {
 client.on("interactionCreate", async interaction => {
   const userId = interaction.user.id;
 
-  // ===== WATERMARK =====
-  if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
-    if (interaction.channelId !== WATERMARK_CHANNEL_ID)
-      return interaction.reply({ content: "❌ Mauvais salon", flags: 64 });
+ // ===== WATERMARK =====
+if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
+  if (interaction.channelId !== WATERMARK_CHANNEL_ID)
+    return interaction.reply({ content: "❌ Mauvais salon", flags: 64 });
 
-    await interaction.deferReply();
-    const attach = interaction.options.getAttachment("image");
-    const pos = interaction.options.getString("position");
-    const logo = interaction.options.getString("logo") || "1";
+  await interaction.deferReply();
 
-    try {
-      const buffer = Buffer.from(await (await fetch(attach.url)).arrayBuffer());
-      const img = sharp(buffer);
-      const meta = await img.metadata();
-      const logoWidth = Math.floor(meta.width * 0.035);
-      const wMarkBuffer = await sharp(path.join(__dirname,
-        logo === "2" ? "watermark2.png" :
-        logo === "3" ? "watermark3.png" :
-        "watermark.png")).resize({ width: logoWidth }).png().toBuffer();
+  const attach = interaction.options.getAttachment("image");
+  const pos = interaction.options.getString("position");
+  const logo = interaction.options.getString("logo") || "1";
 
-      const wMeta = await sharp(wMarkBuffer).metadata();
-      const marginX = Math.floor(meta.width * 0.01);
-      const marginY = Math.floor(meta.height * 0.01);
-      let top = 0, left = 0;
-      const position = (pos || "southeast").toLowerCase();
+  try {
+    const buffer = Buffer.from(await (await fetch(attach.url)).arrayBuffer());
+    const img = sharp(buffer);
+    const meta = await img.metadata();
 
-      switch(position) {
-        case "northwest": top = marginY; left = marginX; break;
-        case "northeast": top = marginY; left = meta.width - wMeta.width - marginX; break;
-        case "southwest": top = meta.height - wMeta.height - marginY; left = marginX; break;
-        case "southeast": top = meta.height - wMeta.height - marginY; left = meta.width - wMeta.width - marginX; break;
-        case "center": case "centre": top = (meta.height - wMeta.height)/2; left = (meta.width - wMeta.width)/2; break;
+    const logoWidth = Math.floor(meta.width * 0.035);
+
+    const wMarkBuffer = await sharp(path.join(__dirname,
+      logo === "2" ? "watermark2.png" :
+      logo === "3" ? "watermark3.png" :
+      "watermark.png"
+    ))
+    .resize({ width: logoWidth })
+    .png()
+    .toBuffer();
+
+    const wMeta = await sharp(wMarkBuffer).metadata();
+
+    const marginX = Math.floor(meta.width * 0.01);
+    const marginY = Math.floor(meta.height * 0.01);
+
+    let top = 0;
+    let left = 0;
+
+    const position = (pos || "southeast").toLowerCase();
+
+    switch(position) {
+
+      // 🔹 COINS
+      case "northwest":
+        top = marginY;
+        left = marginX;
+        break;
+
+      case "northeast":
+        top = marginY;
+        left = meta.width - wMeta.width - marginX;
+        break;
+
+      case "southwest":
+        top = meta.height - wMeta.height - marginY;
+        left = marginX;
+        break;
+
+      case "southeast":
+        top = meta.height - wMeta.height - marginY;
+        left = meta.width - wMeta.width - marginX;
+        break;
+
+      // 🔹 CENTRE
+      case "center":
+      case "centre":
+        top = (meta.height - wMeta.height) / 2;
+        left = (meta.width - wMeta.width) / 2;
+        break;
+
+      // 🔹 MILIEU HAUT
+      case "north":
+      case "top":
+      case "milieu haut":
+        top = marginY;
+        left = (meta.width - wMeta.width) / 2;
+        break;
+
+      // 🔹 MILIEU BAS
+      case "south":
+      case "bottom":
+      case "milieu bas":
+        top = meta.height - wMeta.height - marginY;
+        left = (meta.width - wMeta.width) / 2;
+        break;
+    }
+
+    const out = await img.composite([
+      {
+        input: wMarkBuffer,
+        top: Math.round(top),
+        left: Math.round(left)
       }
+    ]).toBuffer();
 
-      const out = await img.composite([{ input: wMarkBuffer, top: Math.round(top), left: Math.round(left) }]).toBuffer();
-      await interaction.editReply({ files: [new AttachmentBuilder(out, { name: "prime.png" })] });
+    await interaction.editReply({
+      files: [new AttachmentBuilder(out, { name: "prime.png" })]
+    });
 
-    } catch (e) { console.error(e); await interaction.editReply("❌ Erreur watermark"); }
+  } catch (e) {
+    console.error(e);
+    await interaction.editReply("❌ Erreur watermark");
   }
-
+}
   // ===== DEVIS =====
   if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
     await interaction.deferReply();
