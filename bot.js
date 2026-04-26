@@ -369,6 +369,25 @@ if (interaction.isChatInputCommand() && interaction.commandName === "watermark")
     });
   }
 
+  // ===== REFUS =====
+if (interaction.isButton() && interaction.customId.startsWith("refuse_")) {
+
+  const id = interaction.customId.split("_")[1];
+
+  try {
+    // 🗑️ suppression du message du devis
+    await interaction.message.delete();
+
+    // 🧹 nettoyage mémoire
+    devisCache.delete(id);
+    devisSigners.delete(id);
+
+  } catch (err) {
+    console.error("Erreur refus devis:", err);
+    return interaction.reply({ content: "❌ Erreur lors de la suppression", flags: 64 });
+  }
+}
+  
   // ===== ENVOI =====
 if (interaction.isButton() && interaction.customId.startsWith("send_")) {
 
