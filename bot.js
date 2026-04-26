@@ -278,83 +278,76 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  // ===== SIGNATURE ===== (FIXES)
-  if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
-    const id = interaction.customId.replace("sign_", "");
-    const data = devisCache.get(id);
+// ===== SIGNATURE =====
+if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
+  const id = interaction.customId.replace("sign_", "");
+  const data = devisCache.get(id);
 
-    if (!data) return interaction.reply({ content:"❌ Devis expiré", flags:64 });
+  if (!data) return interaction.reply({ content:"❌ Devis expiré", flags:64 });
 
-    devisSigners.set(id, interaction.user.id);
+  devisSigners.set(id, interaction.user.id);
 
-    const canvas = createCanvas(800,1000);
-    const ctx = canvas.getContext('2d');
+  const canvas = createCanvas(800,1000);
+  const ctx = canvas.getContext('2d');
 
-    ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
-    ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
-    ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
-    ctx.font="20px Roboto"; ctx.fillText("Prime Studio",50,100);
+  // --- DESIGN COMPLET DU DEVIS (IDENTIQUE À AVANT) ---
+  ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
+  ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
+  ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
+  ctx.font="20px Roboto"; ctx.fillText("Prime Studio",50,100);
 
-    ctx.fillStyle="#111"; ctx.font="20px Roboto"; ctx.fillText("Signature :",60,900);
-    ctx.font="28px Dancing"; ctx.fillText(interaction.member.nickname || interaction.user.username,200,900);
+  ctx.fillStyle="#ffffff"; ctx.fillRect(40,140,720,140);
+  ctx.strokeStyle="#ddd"; ctx.strokeRect(40,140,720,140);
 
-    const rowSend = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`send_mp_${id}`).setLabel("📩 MP").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`send_channel_${id}`).setLabel("📤 Channel").setStyle(ButtonStyle.Secondary)
-    );
+  ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("CLIENT",60,170);
+  ctx.font="20px Roboto";
+  ctx.fillText("Nom : " + data.client,60,210);
+  ctx.fillText("Téléphone : " + data.telephone,60,240);
+  ctx.fillText("Photos : " + data.photos,60,270);
 
-    return interaction.update({
-      content:`✅ Devis signé par ${interaction.member.nickname || interaction.user.username}`,
-      files:[new AttachmentBuilder(canvas.toBuffer(),{name:"signed.png"})],
-      components:[rowSend]
-    });
+  ctx.fillStyle="#ffffff"; ctx.fillRect(40,320,720,350);
+  ctx.strokeRect(40,320,720,350);
+
+  ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("DESCRIPTION",60,350);
+
+  let y = 390;
+  let line = "";
+  ctx.font="20px Roboto";
+
+  for (let word of data.description.split(" ")) {
+    const testLine=line+word+" ";
+    if (ctx.measureText(testLine).width>680) {
+      ctx.fillText(line,60,y);
+      line=word+" ";
+      y+=28;
+    } else line=testLine;
   }
+  ctx.fillText(line,60,y);
 
-  // ===== ENVOI ===== (FIXES)
-  if (interaction.isButton() && interaction.customId.startsWith("send_")) {
-    const parts = interaction.customId.split("_");
-    const id = parts.slice(2).join("_");
+  ctx.fillStyle="#111"; ctx.fillRect(40,720,720,100);
+  ctx.fillStyle="#fff"; ctx.font="bold 32px Roboto";
+  ctx.fillText("TOTAL : $" + data.prix,60,780);
 
-    const signerId = devisSigners.get(id);
-    const file = interaction.message.attachments.first();
-    const data = devisCache.get(id);
+  // ✅ AJOUT SIGNATURE (SANS CASSER LE RESTE)
+  ctx.fillStyle="#111"; ctx.font="20px Roboto";
+  ctx.fillText("Signature :",60,900);
 
-    if (!data || !file || !signerId) {
-      return interaction.reply({ content:"❌ Données manquantes", flags:64 });
-    }
+  ctx.font="28px Dancing";
+  ctx.fillText(interaction.member.nickname || interaction.user.username,200,900);
 
-    if (interaction.customId.startsWith("send_mp")) {
-      const user = await client.users.fetch(signerId);
-      await user.send({ files:[file] });
-    }
+  ctx.font="16px Roboto";
+  ctx.fillText(`Le ${new Date().toLocaleDateString()}`,200,930);
 
-    if (interaction.customId.startsWith("send_channel")) {
-      const channel = await client.channels.fetch(DEVIS_CHANNEL_ID);
-      await channel.send({ files:[file] });
-    }
+  const rowSend = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`send_mp_${id}`).setLabel("📩 MP").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`send_channel_${id}`).setLabel("📤 Channel").setStyle(ButtonStyle.Secondary)
+  );
 
-    await interaction.reply({ content:"✅ Envoyé !", flags:64 });
-  }
-
-  // ===== DISPO ===== (INCHANGÉ)
-  if (interaction.isButton()) {
-    await interaction.deferReply({ flags: 64 });
-    const member = interaction.member;
-    const status = interaction.customId === "dispo_on" ? "🟢" : "🔴";
-
-    if (interaction.channelId === PHOTO_CHANNEL_ID) {
-      if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) return interaction.editReply("❌ Tu n'es pas photographe.");
-      photoStatuses[userId] = status;
-    } else if (interaction.channelId === MODEL_CHANNEL_ID) {
-      if (!member.roles.cache.some(r => r.name === MODEL_ROLE)) return interaction.editReply("❌ Tu n'es pas modèle.");
-      modelStatuses[userId] = status;
-    } else return;
-
-    saveStatuses({ photoStatuses, modelStatuses });
-    await refreshAll();
-    return interaction.editReply("✅ Statut mis à jour");
-  }
-
-});
+  return interaction.update({
+    content:`✅ Devis signé par ${interaction.member.nickname || interaction.user.username}`,
+    files:[new AttachmentBuilder(canvas.toBuffer(),{name:"signed.png"})],
+    components:[rowSend]
+  });
+}
 
 client.login(TOKEN);
