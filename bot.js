@@ -345,7 +345,6 @@ if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
     content:`✅ Devis signé par ${interaction.member.nickname || interaction.user.username}`,
     files:[new AttachmentBuilder(canvas.toBuffer(),{name:"signed.png"})],
     components:[rowSend]
-  });
-}
+});
 
 client.login(TOKEN);
