@@ -290,7 +290,6 @@ if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
   const canvas = createCanvas(800,1000);
   const ctx = canvas.getContext('2d');
 
-  // --- DESIGN COMPLET DU DEVIS (IDENTIQUE À AVANT) ---
   ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
   ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
   ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
@@ -328,7 +327,6 @@ if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
   ctx.fillStyle="#fff"; ctx.font="bold 32px Roboto";
   ctx.fillText("TOTAL : $" + data.prix,60,780);
 
-  // ✅ AJOUT SIGNATURE (SANS CASSER LE RESTE)
   ctx.fillStyle="#111"; ctx.font="20px Roboto";
   ctx.fillText("Signature :",60,900);
 
@@ -348,5 +346,6 @@ if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
     files:[new AttachmentBuilder(canvas.toBuffer(),{name:"signed.png"})],
     components:[rowSend]
   });
+}
 
 client.login(TOKEN);
