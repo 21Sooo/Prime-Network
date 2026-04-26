@@ -309,35 +309,49 @@ client.on("interactionCreate", async interaction => {
   }
 
   // ===== ENVOI =====
-  if (interaction.isButton() && interaction.customId.startsWith("send_")) {
-    const id = interaction.customId.split("_")[2];
-    const signerId = devisSigners.get(id);
-    const file = interaction.message.attachments.first();
-    const data = devisCache.get(id);
+if (interaction.isButton() && interaction.customId.startsWith("send_")) {
 
-    if (!data) {
-      return interaction.reply({ content:"❌ Impossible d'envoyer le devis : données manquantes", flags:64 });
-    }
+  const parts = interaction.customId.split("_");
+  const type = parts[1];
+  const id = parts.slice(2).join("_");
 
-    if (interaction.customId.startsWith("send_mp") && signerId) {
-      const member = await client.users.fetch(signerId);
-      await member.send({
+  const signerId = devisSigners.get(id);
+  const file = interaction.message.attachments.first();
+  const data = devisCache.get(id);
+
+  if (!data || !file) {
+    return interaction.reply({ content:"❌ Données manquantes", flags:64 });
+  }
+
+  try {
+
+    // ✅ ENVOI MP (toujours possible)
+    if (type === "mp" && signerId) {
+      const user = await client.users.fetch(signerId);
+
+      await user.send({
         content:`Merci de votre confiance, Prime Network™ vous remercie et espère vous revoir très bientôt !`,
         files:[file]
       });
     }
 
-    if (interaction.customId.startsWith("send_channel")) {
+    // ✅ ENVOI CHANNEL (toujours possible)
+    if (type === "channel") {
       const channel = await client.channels.fetch(DEVIS_CHANNEL_ID);
+
       await channel.send({
         content:`Client : ${data.client}\nTéléphone : ${data.telephone}`,
         files:[file]
       });
     }
 
-    await interaction.reply({ content:"✅ Envoyé !", flags:64 });
-  }
+    return interaction.reply({ content:"✅ Envoyé !", flags:64 });
 
+  } catch (err) {
+    console.error("Erreur envoi devis:", err);
+    return interaction.reply({ content:"❌ Erreur lors de l'envoi", flags:64 });
+  }
+}
   // ===== DISPO =====
   if (interaction.isButton()) {
     await interaction.deferReply({ flags: 64 });
