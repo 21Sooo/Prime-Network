@@ -35,6 +35,7 @@ const MODEL_ROLE = "👠・Prime Model";
 
 const devisCache = new Map();       // Données des devis
 const devisSigners = new Map();     // Signataire du devis
+const devisFiles = new Map(); // 🔥 stockage image signée
 
 // FILES
 const panelFile = "./panels.json";
@@ -343,51 +344,93 @@ if (meta.width > 3000 || meta.height > 3000) ratio = 0.06;
     });
   }
 
-  // ===== SIGNATURE =====
-  if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
-    const id = interaction.customId.split("_")[1];
-    const data = devisCache.get(id);
-    devisSigners.set(id, interaction.user.id);
+ // ===== SIGNATURE =====
+if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
 
-    const canvas = createCanvas(800,1000);
-    const ctx = canvas.getContext('2d');
-    // --- DESIGN + SIGNATURE ---
-    ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
-    ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
-    ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
-    ctx.font="20px Roboto"; ctx.fillText("Prime Studio",50,100);
-    ctx.fillStyle="#ffffff"; ctx.fillRect(40,140,720,140);
-    ctx.strokeStyle="#ddd"; ctx.strokeRect(40,140,720,140);
-    ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("CLIENT",60,170);
-    ctx.font="20px Roboto"; ctx.fillText(`Nom : ${data.client}`,60,210);
-    ctx.fillText(`Téléphone : ${data.telephone}`,60,240);
-    ctx.fillText(`Photos : ${data.photos}`,60,270);
-    ctx.fillStyle="#ffffff"; ctx.fillRect(40,320,720,350);
-    ctx.strokeRect(40,320,720,350);
-    ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("DESCRIPTION",60,350);
-    y=390; line=""; ctx.font="20px Roboto";
-    for (let word of data.description.split(" ")) {
-      const testLine=line+word+" ";
-      if (ctx.measureText(testLine).width>680) { ctx.fillText(line,60,y); line=word+" "; y+=28; } else line=testLine;
-    }
-    ctx.fillText(line,60,y);
-    ctx.fillStyle="#111"; ctx.fillRect(40,720,720,100);
-    ctx.fillStyle="#fff"; ctx.font="bold 32px Roboto"; ctx.fillText(`TOTAL : $${data.prix}`,60,780);
-    ctx.fillStyle="#111"; ctx.font="20px Roboto"; ctx.fillText("Signature :",60,900);
-    ctx.font="28px Dancing"; ctx.fillText(interaction.member.nickname || interaction.user.username,200,900);
-    ctx.font="16px Roboto"; ctx.fillText(`Le ${new Date().toLocaleDateString()}`,200,930);
+  const id = interaction.customId.split("_")[1];
+  const data = devisCache.get(id);
 
-    const rowSend = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`send_mp_${id}`).setLabel("📩 MP").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`send_channel_${id}`).setLabel("📤 Channel").setStyle(ButtonStyle.Secondary)
-    );
-
-    return interaction.update({
-      content:`✅ Devis signé par ${interaction.member.nickname || interaction.user.username}`,
-      files:[new AttachmentBuilder(canvas.toBuffer(),{name:"signed.png"})],
-      components:[rowSend]
-    });
+  if (!data) {
+    return interaction.reply({ content: "❌ Devis introuvable", flags: 64 });
   }
+
+  devisSigners.set(id, interaction.user.id);
+
+  const canvas = createCanvas(800,1000);
+  const ctx = canvas.getContext('2d');
+
+  // --- DESIGN COMPLET + SIGNATURE ---
+  ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
+  ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
+  ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
+  ctx.font="20px Roboto"; ctx.fillText("Prime Studio",50,100);
+
+  ctx.fillStyle="#ffffff"; ctx.fillRect(40,140,720,140);
+  ctx.strokeStyle="#ddd"; ctx.strokeRect(40,140,720,140);
+
+  ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("CLIENT",60,170);
+  ctx.font="20px Roboto";
+  ctx.fillText(`Nom : ${data.client}`,60,210);
+  ctx.fillText(`Téléphone : ${data.telephone}`,60,240);
+  ctx.fillText(`Photos : ${data.photos}`,60,270);
+
+  ctx.fillStyle="#ffffff"; ctx.fillRect(40,320,720,350);
+  ctx.strokeRect(40,320,720,350);
+
+  ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("DESCRIPTION",60,350);
+
+  let y = 390;
+  let line = "";
+  ctx.font="20px Roboto";
+
+  for (let word of data.description.split(" ")) {
+    const testLine = line + word + " ";
+    if (ctx.measureText(testLine).width > 680) {
+      ctx.fillText(line,60,y);
+      line = word + " ";
+      y += 28;
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line,60,y);
+
+  ctx.fillStyle="#111"; ctx.fillRect(40,720,720,100);
+  ctx.fillStyle="#fff"; ctx.font="bold 32px Roboto";
+  ctx.fillText(`TOTAL : $${data.prix}`,60,780);
+
+  // SIGNATURE
+  ctx.fillStyle="#111";
+  ctx.font="20px Roboto";
+  ctx.fillText("Signature :",60,900);
+
+  ctx.font="28px Dancing";
+  ctx.fillText(interaction.member.nickname || interaction.user.username,200,900);
+
+  ctx.font="16px Roboto";
+  ctx.fillText(`Le ${new Date().toLocaleDateString()}`,200,930);
+
+  const buffer = canvas.toBuffer();
+
+  // 🔥 stockage image
+  devisFiles.set(id, buffer);
+
+  const rowSend = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`send_mp_${id}`).setLabel("📩 MP").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`send_channel_${id}`).setLabel("📤 Channel").setStyle(ButtonStyle.Secondary)
+  );
+
+  // ✅ IMPORTANT : defer + delete + resend
+  await interaction.deferUpdate();
+
+  await interaction.message.delete();
+
+  return interaction.channel.send({
+    content:`✅ Devis signé par ${interaction.member.nickname || interaction.user.username}`,
+    files:[new AttachmentBuilder(buffer,{name:"signed.png"})],
+    components:[rowSend]
+  });
+}
 
   // ===== REFUS =====
 if (interaction.isButton() && interaction.customId.startsWith("refuse_")) {
@@ -395,20 +438,19 @@ if (interaction.isButton() && interaction.customId.startsWith("refuse_")) {
   const id = interaction.customId.split("_")[1];
 
   try {
-    // 🗑️ suppression du message du devis
     await interaction.message.delete();
 
-    // 🧹 nettoyage mémoire
     devisCache.delete(id);
     devisSigners.delete(id);
+    devisFiles.delete(id);
 
   } catch (err) {
     console.error("Erreur refus devis:", err);
     return interaction.reply({ content: "❌ Erreur lors de la suppression", flags: 64 });
   }
 }
-  
-  // ===== ENVOI =====
+
+// ===== ENVOI =====
 if (interaction.isButton() && interaction.customId.startsWith("send_")) {
 
   const parts = interaction.customId.split("_");
@@ -416,32 +458,32 @@ if (interaction.isButton() && interaction.customId.startsWith("send_")) {
   const id = parts.slice(2).join("_");
 
   const signerId = devisSigners.get(id);
-  const file = interaction.message.attachments.first();
+  const buffer = devisFiles.get(id);
   const data = devisCache.get(id);
 
-  if (!data || !file) {
+  if (!data || !buffer) {
     return interaction.reply({ content:"❌ Données manquantes", flags:64 });
   }
 
   try {
 
-    // ✅ ENVOI MP (toujours possible)
+    // 📩 MP
     if (type === "mp" && signerId) {
       const user = await client.users.fetch(signerId);
 
       await user.send({
         content:`Merci de votre confiance, Prime Network™ vous remercie et espère vous revoir très bientôt !`,
-        files:[file]
+        files:[new AttachmentBuilder(buffer,{name:"devis.png"})]
       });
     }
 
-    // ✅ ENVOI CHANNEL (toujours possible)
+    // 📤 CHANNEL
     if (type === "channel") {
       const channel = await client.channels.fetch(DEVIS_CHANNEL_ID);
 
       await channel.send({
         content:`Client : ${data.client}\nTéléphone : ${data.telephone}`,
-        files:[file]
+        files:[new AttachmentBuilder(buffer,{name:"devis.png"})]
       });
     }
 
@@ -452,6 +494,7 @@ if (interaction.isButton() && interaction.customId.startsWith("send_")) {
     return interaction.reply({ content:"❌ Erreur lors de l'envoi", flags:64 });
   }
 }
+  
   // ===== DISPO =====
   if (interaction.isButton() && interaction.customId.startsWith("dispo_")) {
     await interaction.deferReply({ flags: 64 });
