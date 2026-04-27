@@ -465,7 +465,7 @@ if (interaction.isButton() && interaction.customId.startsWith("refuse_")) {
 // ===== ENVOI =====
 if (interaction.isButton() && interaction.customId.startsWith("send_")) {
   const parts = interaction.customId.split("_");
-  const type = parts[1];
+  const type = parts[1]; // "mp" ou "channel"
   const id = parts.slice(2).join("_");
 
   const signerId = devisSigners.get(id);
@@ -477,17 +477,14 @@ if (interaction.isButton() && interaction.customId.startsWith("send_")) {
   const photographe = data.photographe || "Non défini";
 
   try {
+    // Envoi selon le type
     if (type === "mp") {
       if (!signerId) return interaction.reply({ content:"❌ Aucun signataire", flags:64 });
       const user = await client.users.fetch(signerId);
-      try {
-        await user.send({
-          content:`Merci de votre confiance !\n\n📸 Photographe : ${photographe}\n\nPrime Network™ vous remercie et espère vous revoir très bientôt !`,
-          files:[new AttachmentBuilder(buffer,{name:"devis.png"})]
-        });
-      } catch {
-        return interaction.reply({ content:"❌ MP fermés", flags:64 });
-      }
+      await user.send({
+        content:`Merci de votre confiance !\n\n📸 Photographe : ${photographe}\n\nPrime Network™ vous remercie et espère vous revoir très bientôt !`,
+        files:[new AttachmentBuilder(buffer,{name:"devis.png"})]
+      });
     }
 
     if (type === "channel") {
@@ -498,17 +495,32 @@ if (interaction.isButton() && interaction.customId.startsWith("send_")) {
       });
     }
 
-    try { await interaction.message.edit({ components: [] }); } catch {}
+    // ✅ Désactiver seulement le bouton cliqué
+    const updatedComponents = interaction.message.components.map(row =>
+      new ActionRowBuilder().addComponents(
+        row.components.map(btn => {
+          if (btn.data.custom_id === interaction.customId) {
+            return ButtonBuilder.from(btn).setDisabled(true); // désactive ce bouton
+          }
+          return btn; // laisse les autres boutons actifs
+        })
+      )
+    );
 
-    if (!interaction.replied && !interaction.deferred) return interaction.reply({ content:"✅ Envoyé !", flags:64 });
-    else return interaction.followUp({ content:"✅ Envoyé !", flags:64 });
+    await interaction.message.edit({ components: updatedComponents });
+
+    if (!interaction.replied && !interaction.deferred) {
+      return interaction.reply({ content:"✅ Envoyé !", flags:64 });
+    } else {
+      return interaction.followUp({ content:"✅ Envoyé !", flags:64 });
+    }
 
   } catch (err) {
     console.error(err);
     if (!interaction.replied && !interaction.deferred) return interaction.reply({ content:"❌ Erreur envoi", flags:64 });
     else return interaction.followUp({ content:"❌ Erreur envoi", flags:64 });
   }
-} // ✅ FIN BLOC DEVIS
+}
   
   // ===== DISPO =====
   if (interaction.isButton() && interaction.customId.startsWith("dispo_")) {
