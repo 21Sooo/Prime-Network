@@ -194,10 +194,6 @@ if (interaction.isChatInputCommand() && interaction.commandName === "portfolio")
 
   const texte = interaction.options.getString("texte") || "📸 Nouveau shoot";
 
-  const img1 = interaction.options.getAttachment("image1");
-  const img2 = interaction.options.getAttachment("image2");
-  const img3 = interaction.options.getAttachment("image3");
-
   const images = [
   interaction.options.getAttachment("image1"),
   interaction.options.getAttachment("image2"),
@@ -212,8 +208,8 @@ if (interaction.isChatInputCommand() && interaction.commandName === "portfolio")
 ].filter(Boolean);
 
   if (images.length === 0) {
-    return interaction.reply({ content: "❌ Tu dois ajouter au moins une image.", flags: 64 });
-  }
+  return interaction.editReply({ content: "❌ Tu dois ajouter au moins une image." });
+}
 
   const embed = new EmbedBuilder()
     .setColor("#111111")
@@ -234,19 +230,19 @@ if (interaction.isChatInputCommand() && interaction.commandName === "portfolio")
       .setStyle(ButtonStyle.Secondary)
   );
 
-  await interaction.editReply({
-    embeds: [embed],
-    files: images.map(img => img.url),
-    components: [row],
-    fetchReply: true
-  });
+  const msg = await interaction.editReply({
+  embeds: [embed],
+  files: images.map(img => img.url),
+  components: [row],
+  fetchReply: true
+});
 
-  portfolioLikes[msg.id] = {
-    count: 0,
-    users: []
-  };
+portfolioLikes[msg.id] = {
+  count: 0,
+  users: []
+};
 
-  savePortfolioLikes(portfolioLikes);
+savePortfolioLikes(portfolioLikes);
 }
   // ===== LIKE PORTFOLIO =====
 if (interaction.isButton() && interaction.customId === "like_portfolio") {
@@ -543,7 +539,7 @@ if (interaction.isButton() && interaction.customId.startsWith("send_")) {
   }
 }
   // ===== DISPO =====
-  if (interaction.isButton()) {
+  if (interaction.isButton() && interaction.customId.startsWith("dispo_")) {
     await interaction.deferReply({ flags: 64 });
     const member = interaction.member;
     const status = interaction.customId === "dispo_on" ? "🟢" : "🔴";
