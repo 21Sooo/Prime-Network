@@ -214,22 +214,23 @@ if (interaction.isChatInputCommand() && interaction.commandName === "portfolio")
   const embed = new EmbedBuilder()
   .setColor("#0d0d0d")
   .setAuthor({
-    name: `📸 ${interaction.member.displayName}`,
+    name: `${interaction.member.displayName}`,
     iconURL: interaction.user.displayAvatarURL()
   })
   .setThumbnail("https://i.postimg.cc/y6Q0PS8k/PN-Logo2.png")
   .setTitle("✨ Portfolio")
-  .setDescription(`📸 ${texte}`)
+  .setDescription(`✨ **${texte}**`)
   .setImage(images[0].url)
   .addFields(
     {
       name: "📷 Photos",
-      value: `${images.length} image(s)`,
+      value: `\`${images.length}\` image(s)`,
       inline: true
     }
   )
   .setFooter({
-    text: "Prime Network™ • Studio",
+    text: `Prime Network™ • ${interaction.user.username}`,
+    iconURL: "https://i.postimg.cc/y6Q0PS8k/PN-Logo2.png"
   })
   .setTimestamp();
 
