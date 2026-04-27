@@ -17,6 +17,8 @@ const fetch = global.fetch;
 const TOKEN = process.env.TOKEN;
 const GUILD_ID = "1403500050067230730";
 const portfolioLikesFile = "./portfolioLikes.json";
+let portfolioLikes = loadPortfolioLikes();
+const portfolioGallery = new Map();
 
 // charger les likes
 function loadPortfolioLikes() {
@@ -29,7 +31,6 @@ function savePortfolioLikes(data) {
   fs.writeFileSync(portfolioLikesFile, JSON.stringify(data, null, 2));
 }
 
-let portfolioLikes = loadPortfolioLikes();
 // FONTS
 try {
   registerFont(path.join(__dirname, 'DancingScript.ttf'), { family: 'Dancing' });
@@ -235,17 +236,32 @@ if (interaction.isChatInputCommand() && interaction.commandName === "portfolio")
   .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("like_portfolio")
-      .setLabel("❤️ 0")
-      .setStyle(ButtonStyle.Secondary)
-  );
+  new ButtonBuilder()
+    .setCustomId("prev_img")
+    .setLabel("⬅️")
+    .setStyle(ButtonStyle.Secondary),
+
+  new ButtonBuilder()
+    .setCustomId("like_portfolio")
+    .setLabel("❤️ 0")
+    .setStyle(ButtonStyle.Secondary),
+
+  new ButtonBuilder()
+    .setCustomId("next_img")
+    .setLabel("➡️")
+    .setStyle(ButtonStyle.Secondary)
+);
 
   const msg = await interaction.editReply({
   embeds: [embed],
-  files: images.map(img => img.url), // 👈 version propre
   components: [row],
   fetchReply: true
+});
+
+portfolioGallery.set(msg.id, {
+  images: images.map(img => img.url),
+  index: 0,
+  texte: texte
 });
 
 portfolioLikes[msg.id] = {
@@ -255,7 +271,31 @@ portfolioLikes[msg.id] = {
 
 savePortfolioLikes(portfolioLikes);
 }
-  // ===== LIKE PORTFOLIO =====
+  // ===== NAVIGATION IMAGES =====
+if (interaction.isButton() && ["prev_img", "next_img"].includes(interaction.customId)) {
+
+  const data = portfolioGallery.get(interaction.message.id);
+  if (!data) return;
+
+  if (interaction.customId === "next_img") {
+    data.index = (data.index + 1) % data.images.length;
+  }
+
+  if (interaction.customId === "prev_img") {
+    data.index = (data.index - 1 + data.images.length) % data.images.length;
+  }
+
+  const embed = EmbedBuilder.from(interaction.message.embeds[0])
+    .setImage(data.images[data.index])
+    .setDescription(`✨ **${data.texte}**\n\n📸 Image ${data.index + 1} / ${data.images.length}`);
+
+  return interaction.update({
+    embeds: [embed]
+  });
+}
+
+
+// ===== LIKE PORTFOLIO =====
 if (interaction.isButton() && interaction.customId === "like_portfolio") {
 
   const msgId = interaction.message.id;
@@ -265,19 +305,32 @@ if (interaction.isButton() && interaction.customId === "like_portfolio") {
     return interaction.reply({ content: "❌ Impossible de liker", flags: 64 });
   }
 
+  // ❌ déjà liké
   if (data.users.includes(interaction.user.id)) {
     return interaction.reply({ content: "❌ Tu as déjà liké", flags: 64 });
   }
 
+  // ✅ ajout du like
   data.users.push(interaction.user.id);
   data.count++;
 
   savePortfolioLikes(portfolioLikes);
 
+  // 🔁 recrée les boutons COMPLETS (navigation + likes)
   const newRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("prev_img")
+      .setLabel("⬅️")
+      .setStyle(ButtonStyle.Secondary),
+
     new ButtonBuilder()
       .setCustomId("like_portfolio")
       .setLabel(`❤️ ${data.count}`)
+      .setStyle(ButtonStyle.Secondary),
+
+    new ButtonBuilder()
+      .setCustomId("next_img")
+      .setLabel("➡️")
       .setStyle(ButtonStyle.Secondary)
   );
 
@@ -285,6 +338,7 @@ if (interaction.isButton() && interaction.customId === "like_portfolio") {
     components: [newRow]
   });
 }
+
   
  // ===== WATERMARK =====
 if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
