@@ -212,16 +212,30 @@ if (interaction.isChatInputCommand() && interaction.commandName === "portfolio")
 }
 
   const embed = new EmbedBuilder()
-    .setColor("#111111")
-    .setAuthor({
-      name: interaction.member.displayName,
-      iconURL: interaction.user.displayAvatarURL()
-    })
-    .setTitle(`📸 Portfolio de ${interaction.member.displayName}`)
-    .setDescription(texte)
-    .setImage(images[0].url)
-    .setFooter({ text: "Prime Network™" })
-    .setTimestamp();
+  .setColor("#0d0d0d") // noir profond
+  .setAuthor({
+    name: `📸 ${interaction.member.displayName}`,
+    iconURL: interaction.user.displayAvatarURL()
+  })
+  .setTitle("✨ Portfolio")
+  .setDescription(`**${texte}**\n\n🌴 *Cayo Perico vibes*`)
+  .setImage(images[0].url)
+  .addFields(
+    {
+      name: "📷 Photos",
+      value: `${images.length} image(s)`,
+      inline: true
+    },
+    {
+      name: "🔥 Style",
+      value: "Cinématique",
+      inline: true
+    }
+  )
+  .setFooter({
+    text: "Prime Network™ • Studio",
+  })
+  .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
