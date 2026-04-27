@@ -16,7 +16,20 @@ const path = require("path");
 const fetch = global.fetch;
 const TOKEN = process.env.TOKEN;
 const GUILD_ID = "1403500050067230730";
+const portfolioLikesFile = "./portfolioLikes.json";
 
+// charger les likes
+function loadPortfolioLikes() {
+  if (!fs.existsSync(portfolioLikesFile)) return {};
+  return JSON.parse(fs.readFileSync(portfolioLikesFile));
+}
+
+// sauvegarder les likes
+function savePortfolioLikes(data) {
+  fs.writeFileSync(portfolioLikesFile, JSON.stringify(data, null, 2));
+}
+
+let portfolioLikes = loadPortfolioLikes();
 // FONTS
 try {
   registerFont(path.join(__dirname, 'DancingScript.ttf'), { family: 'Dancing' });
@@ -168,7 +181,102 @@ client.on("messageDelete", async (msg) => {
 // INTERACTIONS
 client.on("interactionCreate", async interaction => {
   const userId = interaction.user.id;
+// ===== PORTFOLIO =====
+if (interaction.isChatInputCommand() && interaction.commandName === "portfolio") {
 
+  const member = interaction.member;
+
+  if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) {
+    return interaction.reply({ content: "❌ Tu n'es pas photographe.", flags: 64 });
+  }
+
+  const texte = interaction.options.getString("texte") || "📸 Nouveau shoot";
+
+  const img1 = interaction.options.getAttachment("image1");
+  const img2 = interaction.options.getAttachment("image2");
+  const img3 = interaction.options.getAttachment("image3");
+
+  const images = [
+  interaction.options.getAttachment("image1"),
+  interaction.options.getAttachment("image2"),
+  interaction.options.getAttachment("image3"),
+  interaction.options.getAttachment("image4"),
+  interaction.options.getAttachment("image5"),
+  interaction.options.getAttachment("image6"),
+  interaction.options.getAttachment("image7"),
+  interaction.options.getAttachment("image8"),
+  interaction.options.getAttachment("image9"),
+  interaction.options.getAttachment("image10")
+].filter(Boolean);
+
+  if (images.length === 0) {
+    return interaction.reply({ content: "❌ Tu dois ajouter au moins une image.", flags: 64 });
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor("#111111")
+    .setAuthor({
+      name: interaction.member.displayName,
+      iconURL: interaction.user.displayAvatarURL()
+    })
+    .setTitle(`📸 Portfolio de ${interaction.member.displayName}`)
+    .setDescription(texte)
+    .setImage(images[0].url)
+    .setFooter({ text: "Prime Network™" })
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("like_portfolio")
+      .setLabel("❤️ 0")
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  const msg = await interaction.reply({
+    embeds: [embed],
+    files: images.map(img => img.url),
+    components: [row],
+    fetchReply: true
+  });
+
+  portfolioLikes[msg.id] = {
+    count: 0,
+    users: []
+  };
+
+  savePortfolioLikes(portfolioLikes);
+}
+  // ===== LIKE PORTFOLIO =====
+if (interaction.isButton() && interaction.customId === "like_portfolio") {
+
+  const msgId = interaction.message.id;
+  const data = portfolioLikes[msgId];
+
+  if (!data) {
+    return interaction.reply({ content: "❌ Impossible de liker", flags: 64 });
+  }
+
+  if (data.users.includes(interaction.user.id)) {
+    return interaction.reply({ content: "❌ Tu as déjà liké", flags: 64 });
+  }
+
+  data.users.push(interaction.user.id);
+  data.count++;
+
+  savePortfolioLikes(portfolioLikes);
+
+  const newRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("like_portfolio")
+      .setLabel(`❤️ ${data.count}`)
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  await interaction.update({
+    components: [newRow]
+  });
+}
+  
  // ===== WATERMARK =====
 if (interaction.isChatInputCommand() && interaction.commandName === "watermark") {
   if (interaction.channelId !== WATERMARK_CHANNEL_ID)
