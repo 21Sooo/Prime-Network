@@ -218,7 +218,7 @@ if (interaction.isChatInputCommand() && interaction.commandName === "portfolio")
     name: `${interaction.member.displayName}`,
     iconURL: interaction.user.displayAvatarURL()
   })
-  .setThumbnail("https://i.postimg.cc/y6Q0PS8k/PN-Logo2.png")
+  .setThumbnail("https://i.imgur.com/VS86vwW.png")
   .setTitle("✨ Portfolio")
   .setDescription(`✨ **${texte}**`)
   .setImage(images[0].url)
@@ -231,7 +231,7 @@ if (interaction.isChatInputCommand() && interaction.commandName === "portfolio")
   )
   .setFooter({
     text: `Prime Network™ • ${interaction.user.username}`,
-    iconURL: "https://i.postimg.cc/y6Q0PS8k/PN-Logo2.png"
+    iconURL: "https://i.imgur.com/VS86vwW.png"
   })
   .setTimestamp();
 
