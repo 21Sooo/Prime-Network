@@ -184,10 +184,12 @@ client.on("interactionCreate", async interaction => {
 // ===== PORTFOLIO =====
 if (interaction.isChatInputCommand() && interaction.commandName === "portfolio") {
 
+  await interaction.deferReply(); // ✅ évite le timeout
+
   const member = interaction.member;
 
   if (!member.roles.cache.some(r => r.name === PHOTO_ROLE)) {
-    return interaction.reply({ content: "❌ Tu n'es pas photographe.", flags: 64 });
+    return interaction.editReply({ content: "❌ Tu n'es pas photographe." });
   }
 
   const texte = interaction.options.getString("texte") || "📸 Nouveau shoot";
@@ -232,7 +234,7 @@ if (interaction.isChatInputCommand() && interaction.commandName === "portfolio")
       .setStyle(ButtonStyle.Secondary)
   );
 
-  const msg = await interaction.reply({
+  await interaction.editReply({
     embeds: [embed],
     files: images.map(img => img.url),
     components: [row],
