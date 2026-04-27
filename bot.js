@@ -195,7 +195,17 @@ if (interaction.isChatInputCommand() && interaction.commandName === "watermark")
     const img = sharp(buffer);
     const meta = await img.metadata();
 
-    const logoWidth = Math.floor(meta.width * 0.035);
+// ✅ NOUVEAU CODE
+let ratio = 0.08;
+
+// 🔥 portrait → plus gros
+if (meta.height > meta.width) ratio = 0.12;
+
+// 🔥 très grande image → éviter énorme watermark
+if (meta.width > 3000 || meta.height > 3000) ratio = 0.06;
+
+    const baseSize = Math.max(meta.width, meta.height);
+    const logoWidth = Math.floor(baseSize * ratio);
 
     const wMarkBuffer = await sharp(path.join(__dirname,
       logo === "2" ? "watermark2.png" :
