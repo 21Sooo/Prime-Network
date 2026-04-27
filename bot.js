@@ -220,7 +220,7 @@ if (interaction.isChatInputCommand() && interaction.commandName === "portfolio")
   })
   .setThumbnail("https://i.imgur.com/VS86vwW.png")
   .setTitle("✨ Portfolio")
-  .setDescription(`✨ **${texte}**`)
+  .setDescription(`👀 **${texte}**`)
   .setImage(images[0].url)
   .addFields(
     {
