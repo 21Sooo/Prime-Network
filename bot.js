@@ -291,75 +291,35 @@ if (meta.width > 3000 || meta.height > 3000) ratio = 0.06;
     await interaction.editReply("❌ Erreur watermark");
   }
 }
+  
   // ===== DEVIS =====
-  if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
-    await interaction.deferReply();
+if (interaction.isChatInputCommand() && interaction.commandName === "devis") {
+  if (!interaction.deferred) await interaction.deferReply();
 
-    const data = {
-      client: interaction.options.getString('client'),
-      telephone: interaction.options.getString('telephone'),
-      photos: interaction.options.getInteger('photos'),
-      description: interaction.options.getString('description'),
-      prix: interaction.options.getInteger('prix')
-    };
-    const id = Date.now().toString();
-    devisCache.set(id, data);
+  const name = interaction.member?.nickname || interaction.user.username;
 
-    const canvas = createCanvas(800,1000);
-    const ctx = canvas.getContext('2d');
+  const data = {
+    client: interaction.options.getString('client') || "Non défini",
+    telephone: interaction.options.getString('telephone') || "Non défini",
+    photos: interaction.options.getInteger('photos') || 0,
+    description: interaction.options.getString('description') || "Aucune description",
+    prix: interaction.options.getInteger('prix') || 0,
+    photographe: name
+  };
 
-    // --- DESIGN COMPLET DU DEVIS ---
-    ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
-    ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
-    ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
-    ctx.font="20px Roboto"; ctx.fillText("Prime Studio",50,100);
-    ctx.fillStyle="#ffffff"; ctx.fillRect(40,140,720,140);
-    ctx.strokeStyle="#ddd"; ctx.strokeRect(40,140,720,140);
-    ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("CLIENT",60,170);
-    ctx.font="20px Roboto"; ctx.fillText(`Nom : ${data.client}`,60,210);
-    ctx.fillText(`Téléphone : ${data.telephone}`,60,240);
-    ctx.fillText(`Photos : ${data.photos}`,60,270);
-    ctx.fillStyle="#ffffff"; ctx.fillRect(40,320,720,350);
-    ctx.strokeRect(40,320,720,350);
-    ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("DESCRIPTION",60,350);
-    let y=390,line="";
-    ctx.font="20px Roboto";
-    for (let word of data.description.split(" ")) {
-      const testLine=line+word+" ";
-      if (ctx.measureText(testLine).width>680) { ctx.fillText(line,60,y); line=word+" "; y+=28; } else line=testLine;
-    }
-    ctx.fillText(line,60,y);
-    ctx.fillStyle="#111"; ctx.fillRect(40,720,720,100);
-    ctx.fillStyle="#fff"; ctx.font="bold 32px Roboto"; ctx.fillText(`TOTAL : $${data.prix}`,60,780);
+  const id = Date.now().toString();
+  devisCache.set(id, data);
 
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`sign_${id}`).setLabel("Signer").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`refuse_${id}`).setLabel("Refuser").setStyle(ButtonStyle.Danger)
-    );
-
-    return interaction.editReply({ 
-      content:`📝 Nouveau devis généré par ${interaction.member.nickname || interaction.user.username}`,
-      files:[new AttachmentBuilder(canvas.toBuffer(),{name:"devis.png"})], 
-      components:[row] 
-    });
-  }
-
- // ===== SIGNATURE =====
-if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
-
-  const id = interaction.customId.split("_")[1];
-  const data = devisCache.get(id);
-
-  if (!data) {
-    return interaction.reply({ content: "❌ Devis introuvable", flags: 64 });
-  }
-
-  devisSigners.set(id, interaction.user.id);
+  setTimeout(() => {
+    devisCache.delete(id);
+    devisSigners.delete(id);
+    devisFiles.delete(id);
+  }, 1000 * 60 * 60); // 1h
 
   const canvas = createCanvas(800,1000);
   const ctx = canvas.getContext('2d');
 
-  // --- DESIGN COMPLET + SIGNATURE ---
+  // --- DESIGN (inchangé) ---
   ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
   ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
   ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
@@ -373,25 +333,24 @@ if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
   ctx.fillText(`Nom : ${data.client}`,60,210);
   ctx.fillText(`Téléphone : ${data.telephone}`,60,240);
   ctx.fillText(`Photos : ${data.photos}`,60,270);
+  ctx.fillText(`Photographe : ${data.photographe}`,60,300);
 
   ctx.fillStyle="#ffffff"; ctx.fillRect(40,320,720,350);
   ctx.strokeRect(40,320,720,350);
 
   ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("DESCRIPTION",60,350);
 
-  let y = 390;
-  let line = "";
+  let y=390, line="";
   ctx.font="20px Roboto";
 
-  for (let word of data.description.split(" ")) {
-    const testLine = line + word + " ";
-    if (ctx.measureText(testLine).width > 680) {
+  const words = (data.description || "").split(" ");
+  for (let word of words) {
+    const testLine=line+word+" ";
+    if (ctx.measureText(testLine).width>680) {
       ctx.fillText(line,60,y);
-      line = word + " ";
-      y += 28;
-    } else {
-      line = testLine;
-    }
+      line=word+" ";
+      y+=28;
+    } else line=testLine;
   }
   ctx.fillText(line,60,y);
 
@@ -399,20 +358,80 @@ if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
   ctx.fillStyle="#fff"; ctx.font="bold 32px Roboto";
   ctx.fillText(`TOTAL : $${data.prix}`,60,780);
 
-  // SIGNATURE
-  ctx.fillStyle="#111";
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`sign_${id}`).setLabel("Signer").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`refuse_${id}`).setLabel("Refuser").setStyle(ButtonStyle.Danger)
+  );
+
+  return interaction.editReply({
+    content:`📝 Nouveau devis généré par ${name}`,
+    files:[new AttachmentBuilder(canvas.toBuffer(), { name:"devis.png" })],
+    components:[row]
+  });
+}
+
+// ===== SIGNATURE =====
+if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
+  const id = interaction.customId.split("_")[1];
+  const data = devisCache.get(id);
+
+  if (!data) return interaction.reply({ content:"❌ Devis introuvable", flags:64 });
+  if (devisSigners.has(id)) return interaction.reply({ content:"❌ Déjà signé", flags:64 });
+
+  const name = interaction.member?.nickname || interaction.user.username;
+  devisSigners.set(id, interaction.user.id);
+
+  const canvas = createCanvas(800,1000);
+  const ctx = canvas.getContext('2d');
+
+  // --- DESIGN (inchangé) ---
+  ctx.fillStyle="#f5f5f5"; ctx.fillRect(0,0,800,1000);
+  ctx.fillStyle="#111"; ctx.fillRect(0,0,800,120);
+  ctx.fillStyle="#fff"; ctx.font="bold 42px Roboto"; ctx.fillText("DEVIS",50,70);
+  ctx.font="20px Roboto"; ctx.fillText("Prime Studio",50,100);
+
+  ctx.fillStyle="#ffffff"; ctx.fillRect(40,140,720,140);
+  ctx.strokeStyle="#ddd"; ctx.strokeRect(40,140,720,140);
+
+  ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("CLIENT",60,170);
   ctx.font="20px Roboto";
+  ctx.fillText(`Nom : ${data.client}`,60,210);
+  ctx.fillText(`Téléphone : ${data.telephone}`,60,240);
+  ctx.fillText(`Photos : ${data.photos}`,60,270);
+  ctx.fillText(`Photographe : ${data.photographe}`,60,300);
+
+  ctx.fillStyle="#ffffff"; ctx.fillRect(40,320,720,350);
+  ctx.strokeRect(40,320,720,350);
+
+  ctx.fillStyle="#111"; ctx.font="bold 22px Roboto"; ctx.fillText("DESCRIPTION",60,350);
+
+  y=390; line="";
+  ctx.font="20px Roboto";
+
+  for (let word of (data.description || "").split(" ")) {
+    const testLine=line+word+" ";
+    if (ctx.measureText(testLine).width>680) {
+      ctx.fillText(line,60,y);
+      line=word+" ";
+      y+=28;
+    } else line=testLine;
+  }
+  ctx.fillText(line,60,y);
+
+  ctx.fillStyle="#111"; ctx.fillRect(40,720,720,100);
+  ctx.fillStyle="#fff"; ctx.font="bold 32px Roboto";
+  ctx.fillText(`TOTAL : $${data.prix}`,60,780);
+
+  ctx.fillStyle="#111"; ctx.font="20px Roboto";
   ctx.fillText("Signature :",60,900);
 
   ctx.font="28px Dancing";
-  ctx.fillText(interaction.member.nickname || interaction.user.username,200,900);
+  ctx.fillText(name,200,900);
 
   ctx.font="16px Roboto";
   ctx.fillText(`Le ${new Date().toLocaleDateString()}`,200,930);
 
   const buffer = canvas.toBuffer();
-
-  // 🔥 stockage image
   devisFiles.set(id, buffer);
 
   const rowSend = new ActionRowBuilder().addComponents(
@@ -420,39 +439,31 @@ if (interaction.isButton() && interaction.customId.startsWith("sign_")) {
     new ButtonBuilder().setCustomId(`send_channel_${id}`).setLabel("📤 Channel").setStyle(ButtonStyle.Secondary)
   );
 
-  // ✅ IMPORTANT : defer + delete + resend
   await interaction.deferUpdate();
-
-  await interaction.message.delete();
+  try { await interaction.message.delete(); } catch {}
 
   return interaction.channel.send({
-    content:`✅ Devis signé par ${interaction.member.nickname || interaction.user.username}`,
-    files:[new AttachmentBuilder(buffer,{name:"signed.png"})],
+    content:`✅ Devis signé par ${name}`,
+    files:[new AttachmentBuilder(buffer, { name:"signed.png" })],
     components:[rowSend]
   });
 }
 
-  // ===== REFUS =====
+// ===== REFUS =====
 if (interaction.isButton() && interaction.customId.startsWith("refuse_")) {
-
   const id = interaction.customId.split("_")[1];
 
-  try {
-    await interaction.message.delete();
+  try { await interaction.message.delete(); } catch {}
 
-    devisCache.delete(id);
-    devisSigners.delete(id);
-    devisFiles.delete(id);
+  devisCache.delete(id);
+  devisSigners.delete(id);
+  devisFiles.delete(id);
 
-  } catch (err) {
-    console.error("Erreur refus devis:", err);
-    return interaction.reply({ content: "❌ Erreur lors de la suppression", flags: 64 });
-  }
+  return; // return explicite pour éviter d'aller plus bas
 }
 
 // ===== ENVOI =====
 if (interaction.isButton() && interaction.customId.startsWith("send_")) {
-
   const parts = interaction.customId.split("_");
   const type = parts[1];
   const id = parts.slice(2).join("_");
@@ -461,39 +472,43 @@ if (interaction.isButton() && interaction.customId.startsWith("send_")) {
   const buffer = devisFiles.get(id);
   const data = devisCache.get(id);
 
-  if (!data || !buffer) {
-    return interaction.reply({ content:"❌ Données manquantes", flags:64 });
-  }
+  if (!data || !buffer) return interaction.reply({ content:"❌ Données manquantes", flags:64 });
+
+  const photographe = data.photographe || "Non défini";
 
   try {
-
-    // 📩 MP
-    if (type === "mp" && signerId) {
+    if (type === "mp") {
+      if (!signerId) return interaction.reply({ content:"❌ Aucun signataire", flags:64 });
       const user = await client.users.fetch(signerId);
-
-      await user.send({
-        content:`Merci de votre confiance, Prime Network™ vous remercie et espère vous revoir très bientôt !`,
-        files:[new AttachmentBuilder(buffer,{name:"devis.png"})]
-      });
+      try {
+        await user.send({
+          content:`Merci de votre confiance !\n\n📸 Photographe : ${photographe}\n\nPrime Network™ vous remercie et espère vous revoir très bientôt !`,
+          files:[new AttachmentBuilder(buffer,{name:"devis.png"})]
+        });
+      } catch {
+        return interaction.reply({ content:"❌ MP fermés", flags:64 });
+      }
     }
 
-    // 📤 CHANNEL
     if (type === "channel") {
       const channel = await client.channels.fetch(DEVIS_CHANNEL_ID);
-
       await channel.send({
-        content:`Client : ${data.client}\nTéléphone : ${data.telephone}`,
+        content:`Client : ${data.client}\nTéléphone : ${data.telephone}\n\n📸 Photographe : ${photographe}`,
         files:[new AttachmentBuilder(buffer,{name:"devis.png"})]
       });
     }
 
-    return interaction.reply({ content:"✅ Envoyé !", flags:64 });
+    try { await interaction.message.edit({ components: [] }); } catch {}
+
+    if (!interaction.replied && !interaction.deferred) return interaction.reply({ content:"✅ Envoyé !", flags:64 });
+    else return interaction.followUp({ content:"✅ Envoyé !", flags:64 });
 
   } catch (err) {
-    console.error("Erreur envoi devis:", err);
-    return interaction.reply({ content:"❌ Erreur lors de l'envoi", flags:64 });
+    console.error(err);
+    if (!interaction.replied && !interaction.deferred) return interaction.reply({ content:"❌ Erreur envoi", flags:64 });
+    else return interaction.followUp({ content:"❌ Erreur envoi", flags:64 });
   }
-}
+} // ✅ FIN BLOC DEVIS
   
   // ===== DISPO =====
   if (interaction.isButton() && interaction.customId.startsWith("dispo_")) {
