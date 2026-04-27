@@ -217,7 +217,7 @@ if (interaction.isChatInputCommand() && interaction.commandName === "portfolio")
     name: `📸 ${interaction.member.displayName}`,
     iconURL: interaction.user.displayAvatarURL()
   })
-  .setThumbnail(interaction.user.displayAvatarURL()) // 👈 ICI
+  .setThumbnail("https://i.postimg.cc/y6Q0PS8k/PN-Logo2.png")
   .setTitle("✨ Portfolio")
   .setDescription(`📸 ${texte}`)
   .setImage(images[0].url)
