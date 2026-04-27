@@ -212,23 +212,19 @@ if (interaction.isChatInputCommand() && interaction.commandName === "portfolio")
 }
 
   const embed = new EmbedBuilder()
-  .setColor("#0d0d0d") // noir profond
+  .setColor("#0d0d0d")
   .setAuthor({
     name: `📸 ${interaction.member.displayName}`,
     iconURL: interaction.user.displayAvatarURL()
   })
+  .setThumbnail(interaction.user.displayAvatarURL()) // 👈 ICI
   .setTitle("✨ Portfolio")
-  .setDescription(`**${texte}**\n\n🌴 *Cayo Perico vibes*`)
+  .setDescription(`📸 ${texte}`)
   .setImage(images[0].url)
   .addFields(
     {
       name: "📷 Photos",
       value: `${images.length} image(s)`,
-      inline: true
-    },
-    {
-      name: "🔥 Style",
-      value: "Cinématique",
       inline: true
     }
   )
@@ -246,7 +242,7 @@ if (interaction.isChatInputCommand() && interaction.commandName === "portfolio")
 
   const msg = await interaction.editReply({
   embeds: [embed],
-  files: images.map(img => img.url),
+  files: images.map(img => img.url), // 👈 version propre
   components: [row],
   fetchReply: true
 });
